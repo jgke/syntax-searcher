@@ -1,0 +1,20 @@
+{
+    "c": {
+        "extensions": ["c", "cpp", "h", "hpp"],
+        "strings": ["\"", "'"],
+        "single_comments": ["//"],
+        "multi_comments": [["/*", "*/"]]
+    },
+    "python": {
+        "extensions": ["py"],
+        "strings": ["\"", "'"],
+        "single_comments": ["#"],
+        "multi_comments": []
+    },
+    "clojure": {
+        "extensions": ["clj", "cljc", "cljs", "edn"],
+        "strings": ["\""],
+        "single_comments": [";"],
+        "multi_comments": []
+    }
+}

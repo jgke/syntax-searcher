@@ -32,17 +32,29 @@ pub fn tokenize<R: Read>(
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
     let mut res = Vec::new();
     while iter.peek().is_some() {
-        if iter.starts_with("//") || iter.starts_with("/*") {
-            flush_comment(&mut iter);
+        if options
+            .single_line_comments
+            .iter()
+            .any(|c| iter.starts_with(c))
+        {
+            flush_single_line(&mut iter);
+            continue;
+        }
+        if let Some((start, end)) = options
+            .multi_line_comments
+            .iter()
+            .find(|(start, _)| iter.starts_with(start))
+        {
+            flush_multi_line_comment(&mut iter, start, end);
             continue;
         }
         let token = match iter.peek().unwrap() {
+            _ if options.string_characters.iter().any(|c| iter.starts_with(c)) => read_string(&mut iter),
             '\\' if options.parse_as_query => read_query_command(&mut iter),
             ' ' | '\t' | '\n' => {
                 iter.next();
                 continue;
             }
-            c if options.is_start_string(c) => read_string(&mut iter),
             'a'..='z' | 'A'..='Z' | '_' => read_identifier(&mut iter),
             '0'..='9' => read_number(&mut iter, options),
             _ => read_other(&mut iter),
@@ -52,32 +64,23 @@ pub fn tokenize<R: Read>(
     (res, iter)
 }
 
-fn flush_comment(iter: &mut PeekableStringIterator) {
-    let ty = iter.peek_n(2);
-    iter.next();
-    iter.next();
-    match ty.as_ref() {
-        "//" => {
-            iter.collect_while(|x| x != '\n');
+fn flush_single_line(iter: &mut PeekableStringIterator) {
+    iter.collect_while(|x| x != '\n');
+}
+
+fn flush_multi_line_comment(iter: &mut PeekableStringIterator, start: &str, end: &str) {
+    for c in start.chars() {
+        assert_eq!(Some(c), iter.next());
+    }
+    while !iter.starts_with(end) {
+        if iter.next().is_none() {
+            break;
         }
-        "/*" => {
-            let mut prev_star = false;
-            let mut stop_next = false;
-            iter.collect_while(|x| {
-                if stop_next {
-                    return false;
-                }
-                if x == '*' {
-                    prev_star = true;
-                } else if x == '/' && prev_star {
-                    stop_next = true;
-                } else {
-                    prev_star = false;
-                }
-                true
-            });
+    }
+    for c in end.chars() {
+        if let Some(other_c) = iter.next() {
+            assert_eq!(c, other_c);
         }
-        t => unreachable!("Unexpected start of comment: {}", t),
     }
 }
 
@@ -137,7 +140,7 @@ fn read_string_content(iter: &mut PeekableStringIterator) -> String {
                 }
             }
             Some(c) => content.push(c),
-            None => break
+            None => break,
         }
     }
     content

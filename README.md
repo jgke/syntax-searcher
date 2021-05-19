@@ -1,7 +1,17 @@
-Syntax-scanner
-==============
+Syntax-searcher
+===============
 
-Generic source code searcher for paren-delimited languages.
+Command-line utility for pattern-matching paren-delimited languages.
+
+- Language-independent, works for most languages
+- Simple regex-like search patterns
+
+Installing
+==========
+
+1) Install Rust eg. using [Rustup](https://rustup.rs/).
+2) Run `cargo install --path .`
+    - The `syns` binary will be installed in `~/.cargo/bin/syns`.
 
 Examples
 ========
@@ -37,10 +47,21 @@ Options
 | Flag | Description |
 | --- | --- |
 | `-h, --help` | Display help |
-| `-s, --[no-]string CHARS` | Add or remove CHARS from string delimiters
-| `-c, --[no-]comment CHARS` | Add or remove CHARS from single-line comments
-| `-m, --[no-]multi BEGIN END` | Add or remove (BEGIN, END) from multi-line comments
+| `--lang LANGUAGE` | Use the defaults for LANGUAGE. Call `syns --lang` to display available presets. |
+| `-s, --[no-]string CHARS` | Add or remove CHARS from string delimiters |
+| `-c, --[no-]comment CHARS` | Add or remove CHARS from single-line comments |
+| `-m, --[no-]multi BEGIN END` | Add or remove (BEGIN, END) from multi-line comments |
 | `-o, --only-matching` | Print only the matched parts. |
+| `--options` | Print what options would be used for parsing and quit. |
+
+The default options will parse JavaScript. They are currently equivalent to
+`syns --lang plain -s '"' -s "'" -s '`' -c '//' -m '/*' '*/'`
+
+If you want to parse a language which doesn't use `'` for strings (like Clojure
+or Rust), you can either use the JavaScript defaults and remove it from the
+possible strings with `syns --no-string "'"`, or use `--lang plain` and specify
+other settings as required. `syns` tries to guess the language based on file
+extension, so ideally this isn't required.
 
 Query language
 ==============
@@ -55,12 +76,6 @@ can be matched using backslash. The following commands are available:
 | `\*` | Match the previous pattern zero or more times. |
 | `\"[regex]"` | Match any string literal with the regex pattern. |
 
-Compiling from source
-=====================
-
-1) Install Rust eg. using [Rustup](https://rustup.rs/).
-2) `cargo run -- pattern-here file-here`
-
 Testing
 =======
 
@@ -71,7 +86,7 @@ Unimplemented features
 
 - Handle multiple file arguments
 - Handle directories as arguments (recursively match every file under that directory)
-- Handle stdin as argument
+- Handle stdin ('-') as argument
 - More language-specific defaults
 - More parsing strategies
     - Strings:
@@ -97,9 +112,10 @@ Unimplemented features
 Comparison to other software
 ============================
 
-`grep` and derivatives: Regular expressions are not powerful enough to parse
-arbitrary paren-delimited expressions. It's possible to use grep extensions to
-match eg. matching brackets. However, the syntax for that is quite clunky.
+`grep` and derivatives: Standard regular expressions are not powerful enough to
+parse arbitrary paren-delimited expressions. It's possible to use grep
+extensions to match eg. matching brackets. However, the syntax for that is
+quite clunky.
 https://unix.stackexchange.com/questions/147662/grep-upto-matching-brackets
 
 `semgrep` https://semgrep.dev/ Semgrep is implemented by having

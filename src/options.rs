@@ -30,6 +30,7 @@ enum OptionCommand {
     RemoveMultiComment(String, String),
     Language(String),
     OnlyMatching,
+    PrintOptionsAndQuit,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -112,6 +113,7 @@ Options:
   -m, --[no-]multi BEGIN END Add or remove (BEGIN, END) from multi-line comments
 
   -o, --only-matching        Print only the matched parts
+  --options                  Print what options would have been used to parse FILE
 "#, filename);
     }
     std::process::exit(status)
@@ -123,6 +125,20 @@ fn print_langs() -> ! {
         println!("- {} [{}]", lang, defs.extensions.join(", "));
     }
     std::process::exit(0)
+}
+
+fn print_options(options: Options) -> ! {
+    println!(
+        r#"Using following parsing options:
+- String delimiters: {}
+- Single line comments: {}
+- Multi line comments: {}"#,
+options.string_characters.into_iter().collect::<Vec<_>>().join(", "),
+options.single_line_comments.into_iter().collect::<Vec<_>>().join(", "),
+options.multi_line_comments.iter().map(|(start, end)| format!("{} {}", start, end)).collect::<Vec<_>>().join(", ")
+);
+
+    std::process::exit(0);
 }
 
 fn get_whole_arg<I: Iterator<Item = Arg>>(iter: &mut Peekable<I>) -> Option<OsString> {
@@ -221,6 +237,8 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
 
             ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
 
+            ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
+
             ArgRef::Positional(_) => {
                 positionals.push(arg.entire_match());
                 continue;
@@ -244,20 +262,23 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
 impl Options {
     pub fn new<S: AsRef<OsStr>>(args: &[S]) -> Options {
         let (cmds, positionals) = parse_options(args);
+        let print_and_quit = cmds.iter().any(|c| matches!(c, OptionCommand::PrintOptionsAndQuit));
+        let empty_osstring: OsString = "".to_string().into();
 
-        if positionals.is_empty() {
+        if positionals.is_empty() && !print_and_quit {
             println!("Missing required argument: PATTERN\n");
             print_help(false, 1);
-        } else if positionals.len() == 1 {
+        } else if positionals.len() == 1 && !print_and_quit {
             println!("Missing required argument: FILE\n");
             print_help(false, 1);
         }
 
-        let query = positionals[0].clone();
+        let query = positionals.get(0).unwrap_or(&empty_osstring).to_string_lossy().to_string();
 
         let files: Vec<OsString> = positionals.into_iter().skip(1).collect();
 
-        let file_path = std::path::Path::new(&files[0]);
+        let first_file = files.get(0).unwrap_or(&empty_osstring);
+        let file_path = std::path::Path::new(first_file);
         let extension = file_path.extension();
 
         let mut opts: Options =
@@ -281,11 +302,16 @@ impl Options {
                 OptionCommand::AddMultiComment(start, end) => { opts.multi_line_comments.insert((start, end)); }
                 OptionCommand::RemoveMultiComment(start, end) => { opts.multi_line_comments.remove(&(start, end)); }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
+                OptionCommand::PrintOptionsAndQuit => {}
                 OptionCommand::Language(_) => {}
             }
         }
 
-        opts.query = query.to_string_lossy().to_string();
+        if print_and_quit {
+            print_options(opts);
+        }
+
+        opts.query = query;
         opts.filename = files[0].to_string_lossy().to_string();
 
         opts
@@ -302,7 +328,7 @@ impl Options {
 
 #[cfg(test)]
 mod tests {
-    use super::Options;
+    use super::*;
 
     #[test]
     fn parse_options() {
@@ -328,5 +354,10 @@ mod tests {
         assert!(options.is_close_paren("}"));
         assert!(options.is_close_paren(")"));
         assert!(options.is_close_paren("]"));
+    }
+
+    #[test]
+    fn builtin_json_is_valid() {
+        serde_json::from_str::<HashMap<String, Defaults>>(BUILTIN_DATABASE).unwrap();
     }
 }

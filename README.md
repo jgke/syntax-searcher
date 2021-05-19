@@ -3,23 +3,44 @@ Syntax-scanner
 
 Generic source code searcher for paren-delimited languages.
 
-Example:
---------
+Examples
+========
 
+Search for a function call and its arguments
+--------------------------------------------
 ```
-# Search for sprintf and its contents
-$ syns 'sprintf(\.\*)' test-files/injection.php
+$ syns 'sprintf()' test-files/injection.php
 [test-files/injection.php:2-4]
 $query = sprintf("SELECT * FROM `Users` WHERE UserName='%s' AND Password='%s'",
                   $mysqli->real_escape_string($username),
                   $mysqli->real_escape_string($password));
+```
 
-# search potential SQL injections in Clojure
-syns '(\./query \. [(str \.\*)])' test-files/injection.clj
+Search potential SQL injections in Clojure
+------------------------------------------
+```
+$ syns '(\./query \. [(str)])' test-files/injection.clj
 [test-files/injection.clj:2-3]
   (j/query db
            [(str "select * from user where username = '" param "'")]))
 ```
+
+More examples
+-------------
+- Search for SQL injections in most languages: `syns '\"INSERT.*" +'`
+- Search for a specific struct definition: `syns 'struct Span { }'`
+- Search for all struct definitions: `syns 'struct \. { }'`
+- Find all calls to `printf` with more than one argument, where the format string starts with "Hello": `syns 'printf(\"Hello.*" \.\+)'`
+
+Options
+=======
+| Flag | Description |
+| --- | --- |
+| `-h, --help` | Display help |
+| `-s, --[no-]string CHARS` | Add or remove CHARS from string delimiters
+| `-c, --[no-]comment CHARS` | Add or remove CHARS from single-line comments
+| `-m, --[no-]multi BEGIN END` | Add or remove (BEGIN, END) from multi-line comments
+| `-o, --only-matching` | Print only the matched parts. |
 
 Query language
 ==============
@@ -33,24 +54,6 @@ can be matched using backslash. The following commands are available:
 | `\+` | Match the previous pattern one or more times. |
 | `\*` | Match the previous pattern zero or more times. |
 | `\"[regex]"` | Match any string literal with the regex pattern. |
-
-Examples
---------
-
-| Query | Explanation |
-| --- | --- |
-| `printf(\"Hello.*" \.\+)` | Find all calls to `printf` with more than one argument, where the format string starts with "Hello". |
-| `\"SELECT.*"+\.\*` | Find all strings starting with "SELECT" where the string literal is followed by a plus sign and more tokens. |
-
-Options
-=======
-| Flag | Description |
-| --- | --- |
-| `-h, --help` | Display help |
-| `-s, --[no-]single` | Enable or disable single quote strings |
-| `-d, --[no-]double` | Enable or disable double quote strings |
-| `-b, --[no-]backtick` | Enable or disable backtick strings |
-| `-o, --only-matching` | Print only the matched parts. |
 
 Compiling from source
 =====================
@@ -68,11 +71,9 @@ Unimplemented features
 
 - Handle multiple file arguments
 - Handle directories as arguments (recursively match every file under that directory)
-- File extension based language detection for language-spesicifc defaults (eg. no single-quote strings for Rust/Clojure)
+- Handle stdin as argument
+- More language-specific defaults
 - More parsing strategies
-    - Comments:
-        - Comments starting with `--`
-        - Comments starting with `#`
     - Strings:
         - Support for strings with various prefixes, eg. Python's `f`
         - Rust's raw strings
@@ -88,6 +89,7 @@ Unimplemented features
         - Currently the query doesn't backtrack, so it doesn't match everything it should
     - Linear time matching
         - This should be possible with the linear time regex state machine algorithms
+- Replacing strings?
 - CLI improvements
     - Fine-tune output
     - JSON output

@@ -102,7 +102,7 @@ Options:
   --lang LANGUAGE            Force defaults for LANGUAGE. Call 'syns --lang'
                              to display available languages.
 
-  -s, --[no-]string CHAR     Add or remove CHAR from string delimiters
+  -s, --[no-]string CHARS    Add or remove CHARS from string delimiters
   -c, --[no-]comment CHARS   Add or remove CHARS from single-line comments
   -m, --[no-]multi BEGIN END Add or remove (BEGIN, END) from multi-line comments
 

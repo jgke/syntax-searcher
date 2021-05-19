@@ -28,7 +28,9 @@ pub fn tokenize<R: Read>(
     options: &Options,
 ) -> (Vec<Token>, PeekableStringIterator) {
     let mut buf = String::new();
-    content.read_to_string(&mut buf).expect("Failed to read file to memory");
+    content
+        .read_to_string(&mut buf)
+        .expect("Failed to read file to memory");
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
     let mut res = Vec::new();
     while let Some(c) = iter.peek() {
@@ -49,7 +51,13 @@ pub fn tokenize<R: Read>(
             continue;
         }
         let token = match c {
-            _ if options.string_characters.iter().any(|c| iter.starts_with(c)) => read_string(&mut iter),
+            _ if options
+                .string_characters
+                .iter()
+                .any(|c| iter.starts_with(c)) =>
+            {
+                read_string(&mut iter)
+            }
             '\\' if options.parse_as_query => read_query_command(&mut iter),
             ' ' | '\t' | '\n' => {
                 iter.next();
@@ -111,17 +119,44 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> Token {
         .filter(|c| *c != '_')
         .collect::<String>();
     if !content.contains('.') && !content.contains('e') {
-        let num = i128::from_str_radix(&content, radix).ok()
-            .or_else(|| i128::from_str_radix(&content.chars().take_while(|c| matches!(c, '0'..='9')).collect::<String>(), radix).ok())
+        let num = i128::from_str_radix(&content, radix)
+            .ok()
+            .or_else(|| {
+                i128::from_str_radix(
+                    &content
+                        .chars()
+                        .take_while(|c| matches!(c, '0'..='9'))
+                        .collect::<String>(),
+                    radix,
+                )
+                .ok()
+            })
             .unwrap_or(0);
         Token {
             ty: TokenType::Integer(num),
             span,
         }
     } else {
-        let num = f64::from_str(&content).ok()
-            .or_else(|| f64::from_str(&content.chars().take_while(|c| matches!(c, '0'..='9' | '.')).collect::<String>()).ok())
-            .or_else(|| f64::from_str(&content.chars().take_while(|c| matches!(c, '0'..='9')).collect::<String>()).ok())
+        let num = f64::from_str(&content)
+            .ok()
+            .or_else(|| {
+                f64::from_str(
+                    &content
+                        .chars()
+                        .take_while(|c| matches!(c, '0'..='9' | '.'))
+                        .collect::<String>(),
+                )
+                .ok()
+            })
+            .or_else(|| {
+                f64::from_str(
+                    &content
+                        .chars()
+                        .take_while(|c| matches!(c, '0'..='9'))
+                        .collect::<String>(),
+                )
+                .ok()
+            })
             .unwrap_or(0.0);
         Token {
             ty: TokenType::Float(num),

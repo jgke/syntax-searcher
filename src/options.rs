@@ -94,14 +94,14 @@ fn print_help(long: bool, status: i32) -> ! {
         .unwrap_or_else(|| "syns".to_string());
     if !long {
         println!(
-            "Usage: {} [OPTION]... PATTERN FILE [FILE]...
+            "Usage: {} [OPTION]... PATTERN FILE
 Pass --help for more information.",
             filename
         );
     } else {
         println!(
-            r#"Usage: {} [OPTION]... PATTERN FILE [FILE]...
-Search for PATTERN in each FILE.
+            r#"Usage: {} [OPTION]... PATTERN FILE
+Search for PATTERN in FILE.
 
 Options:
   -h, --help                 Display this message

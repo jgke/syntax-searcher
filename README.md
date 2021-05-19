@@ -5,6 +5,16 @@ Language-independent command-line utility for syntax-aware pattern matching.
 
 - Language-independent, works for most languages
 - Simple regex-like search patterns
+- Easily search things like
+    - Struct definitions: `syns 'struct Span { }" +' src/psi.rs`
+    - Function signatures: `syns 'int fprintf ( )' /usr/include/stdio.h`
+    - SQL injections: `syns '\"INSERT.*" +' src/db/db_service.scala`
+
+Standard regular expressions are not powerful enough to parse arbitrary
+paren-delimited expressions. This makes it hard to search for specific
+patterns, such as passing dangerous parameters to a function, without hitting
+false positives. `syns` allows searching arbitrary source code files using
+regex-like patterns.
 
 Installing
 ==========
@@ -119,9 +129,8 @@ Comparison to other software
 ============================
 
 `grep` and derivatives: Standard regular expressions are not powerful enough to
-parse arbitrary paren-delimited expressions. It's possible to use grep
-extensions to match eg. matching brackets. However, the syntax for that is
-quite clunky.
+parse arbitrary paren-delimited expressions. While it's possible to use grep
+extensions to match eg. matching brackets, the syntax for that is quite clunky.
 https://unix.stackexchange.com/questions/147662/grep-upto-matching-brackets
 
 `semgrep` https://semgrep.dev/ Semgrep is implemented by having

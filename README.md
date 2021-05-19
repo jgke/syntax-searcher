@@ -21,8 +21,9 @@ Search for a function call and its arguments
 --------------------------------------------
 ```
 $ syns 'sprintf()' test-files/injection.php
-[test-files/injection.php:2-4]
+[test-files/injection.php:2-5]
 $query = sprintf("SELECT * FROM `Users` WHERE UserName='%s' AND Password='%s'",
+                  $table,
                   $mysqli->real_escape_string($username),
                   $mysqli->real_escape_string($password));
 ```

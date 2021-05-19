@@ -77,7 +77,7 @@ can be matched using backslash. The following commands are available:
 | `\.` | Match any token or paren-delimited tree. |
 | `\+` | Match the previous pattern one or more times. |
 | `\*` | Match the previous pattern zero or more times. |
-| `\"[regex]"` | Match any string literal with the regex pattern. |
+| `\"regex"` | Match any string literal with the regex pattern `regex`. |
 
 Testing
 =======

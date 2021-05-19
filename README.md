@@ -1,7 +1,7 @@
 Syntax-searcher
 ===============
 
-Command-line utility for pattern-matching paren-delimited languages.
+Language-independent command-line utility for syntax-aware pattern matching.
 
 - Language-independent, works for most languages
 - Simple regex-like search patterns

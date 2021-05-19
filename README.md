@@ -10,7 +10,8 @@ Installing
 ==========
 
 1) Install Rust eg. using [Rustup](https://rustup.rs/).
-2) Run `cargo install --path .`
+2) Clone this repository: `git clone https://github.com/jgke/syntax-searcher && cd syntax-searcher`
+3) Run `cargo install --path .`
     - The `syns` binary will be installed in `~/.cargo/bin/syns`.
 
 Examples
@@ -55,7 +56,7 @@ Options
 | `--options` | Print what options would be used for parsing and quit. |
 
 The default options will parse JavaScript. They are currently equivalent to
-`syns --lang plain -s '"' -s "'" -s '`' -c '//' -m '/*' '*/'`
+`syns --lang plain -s '"' -s "'" -s '\`' -c '//' -m '/*' '*/'`
 
 If you want to parse a language which doesn't use `'` for strings (like Clojure
 or Rust), you can either use the JavaScript defaults and remove it from the
@@ -71,6 +72,8 @@ can be matched using backslash. The following commands are available:
 
 | Pattern | Description |
 | --- | --- |
+| `foo` | Match an identifier `foo` |
+| `foo bar` | Match an identifier `foo`, followed by whitespace and/or comments, and identifier `bar` |
 | `\.` | Match any token or paren-delimited tree. |
 | `\+` | Match the previous pattern one or more times. |
 | `\*` | Match the previous pattern zero or more times. |

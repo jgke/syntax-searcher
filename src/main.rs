@@ -13,16 +13,18 @@ mod tokenizer;
 use std::env;
 use std::fs::File;
 use std::io;
+use log::info;
 
 use options::*;
 
 #[cfg(not(tarpaulin_include))]
 fn main() -> io::Result<()> {
     env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "warn"),
     );
     let args: Vec<String> = env::args().collect();
     let options = Options::new(&args);
+    info!("Using options: {:#?}", options);
     let fp = File::open(&options.filename)?;
     run::run(options, fp);
     Ok(())

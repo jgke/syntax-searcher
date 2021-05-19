@@ -1,5 +1,6 @@
-use crate::options::Options;
+use log::debug;
 
+use crate::options::Options;
 use crate::parser::{parse_query, Ast, MatcherAst};
 use crate::tokenizer::TokenType;
 
@@ -16,7 +17,9 @@ pub struct Match {
 impl Query {
     pub fn new(mut options: Options) -> Query {
         options.parse_as_query = true;
+        debug!("Query string: {}", options.query);
         let (tree, _) = parse_query(&mut options.query.as_bytes(), &options);
+        debug!("Query AST: {:#?}", tree);
         Query { matcher_ast: tree }
     }
 

@@ -12,6 +12,7 @@ use crate::query::*;
 pub fn run<R: Read>(options: Options, file: R) {
     debug!("Parsing query");
     let query = Query::new(options.clone());
+    debug!("Query: {:#?}", query);
     debug!("Parsing file");
     let (file, iter) = parse_file(file, &options);
     debug!("Enumerating matches");

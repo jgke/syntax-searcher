@@ -1,11 +1,11 @@
 use crate::argparse::{parse_args, Arg, ArgRef};
+use lazy_static::lazy_static;
+use log::warn;
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
-use serde::Deserialize;
-use lazy_static::lazy_static;
-use std::collections::HashMap;
-use log::warn;
 
 #[derive(Clone, Debug)]
 pub struct Options {
@@ -36,7 +36,7 @@ enum OptionCommand {
 #[derive(Clone, Debug, Deserialize)]
 struct Defaults {
     extensions: Vec<String>,
-    strings:  Vec<String>,
+    strings: Vec<String>,
     single_comments: Vec<String>,
     multi_comments: Vec<(String, String)>,
 }
@@ -46,8 +46,8 @@ const BUILTIN_DATABASE: &str = include_str!("../config.json");
 lazy_static! {
     static ref PARSED_DB: HashMap<String, Defaults> = serde_json::from_str(BUILTIN_DATABASE)
         .unwrap_or_else(|e| {
-                        warn!("Built-in JSON database has a syntax error: {}", e);
-                        HashMap::new()
+            warn!("Built-in JSON database has a syntax error: {}", e);
+            HashMap::new()
         });
     static ref EXTENSION_TO_SETTINGS: HashMap<String, Options> = {
         let mut res = HashMap::new();
@@ -114,7 +114,9 @@ Options:
 
   -o, --only-matching        Print only the matched parts
   --options                  Print what options would have been used to parse FILE
-"#, filename);
+"#,
+            filename
+        );
     }
     std::process::exit(status)
 }
@@ -133,10 +135,23 @@ fn print_options(options: Options) -> ! {
 - String delimiters: {}
 - Single line comments: {}
 - Multi line comments: {}"#,
-options.string_characters.into_iter().collect::<Vec<_>>().join(", "),
-options.single_line_comments.into_iter().collect::<Vec<_>>().join(", "),
-options.multi_line_comments.iter().map(|(start, end)| format!("{} {}", start, end)).collect::<Vec<_>>().join(", ")
-);
+        options
+            .string_characters
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(", "),
+        options
+            .single_line_comments
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(", "),
+        options
+            .multi_line_comments
+            .iter()
+            .map(|(start, end)| format!("{} {}", start, end))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     std::process::exit(0);
 }
@@ -206,13 +221,13 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                 if let Some(start) = get_whole_arg(&mut arg_iter) {
                     if let Some(end) = get_whole_arg(&mut arg_iter) {
                         OptionCommand::AddMultiComment(
-                                start.to_string_lossy().to_string(),
-                                end.to_string_lossy().to_string(),
+                            start.to_string_lossy().to_string(),
+                            end.to_string_lossy().to_string(),
                         )
                     } else {
-                    println!("Missing second argument for --multi");
-                    print_help(false, 1)
-                }
+                        println!("Missing second argument for --multi");
+                        print_help(false, 1)
+                    }
                 } else {
                     println!("Missing argument for --multi");
                     print_help(false, 1)
@@ -222,13 +237,13 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                 if let Some(start) = get_whole_arg(&mut arg_iter) {
                     if let Some(end) = get_whole_arg(&mut arg_iter) {
                         OptionCommand::RemoveMultiComment(
-                                start.to_string_lossy().to_string(),
-                                end.to_string_lossy().to_string(),
+                            start.to_string_lossy().to_string(),
+                            end.to_string_lossy().to_string(),
                         )
                     } else {
-                    println!("Missing second argument for --no-multi");
-                    print_help(false, 1)
-                }
+                        println!("Missing second argument for --no-multi");
+                        print_help(false, 1)
+                    }
                 } else {
                     println!("Missing argument for --no-multi");
                     print_help(false, 1)
@@ -262,7 +277,9 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
 impl Options {
     pub fn new<S: AsRef<OsStr>>(args: &[S]) -> Options {
         let (cmds, positionals) = parse_options(args);
-        let print_and_quit = cmds.iter().any(|c| matches!(c, OptionCommand::PrintOptionsAndQuit));
+        let print_and_quit = cmds
+            .iter()
+            .any(|c| matches!(c, OptionCommand::PrintOptionsAndQuit));
         let empty_osstring: OsString = "".to_string().into();
 
         if positionals.is_empty() && !print_and_quit {
@@ -273,7 +290,11 @@ impl Options {
             print_help(false, 1);
         }
 
-        let query = positionals.get(0).unwrap_or(&empty_osstring).to_string_lossy().to_string();
+        let query = positionals
+            .get(0)
+            .unwrap_or(&empty_osstring)
+            .to_string_lossy()
+            .to_string();
 
         let files: Vec<OsString> = positionals.into_iter().skip(1).collect();
 
@@ -281,26 +302,41 @@ impl Options {
         let file_path = std::path::Path::new(first_file);
         let extension = file_path.extension();
 
-        let mut opts: Options =
-            cmds.iter().filter_map(|c| if let OptionCommand::Language(l) = c {
-                Some(PARSED_DB[l].extensions[0].to_string())
-            } else {
-                None
+        let mut opts: Options = cmds
+            .iter()
+            .filter_map(|c| {
+                if let OptionCommand::Language(l) = c {
+                    Some(PARSED_DB[l].extensions[0].to_string())
+                } else {
+                    None
+                }
             })
-        .last()
+            .last()
             .or_else(|| extension.map(|e| e.to_string_lossy().to_string()))
             .and_then(|e| EXTENSION_TO_SETTINGS.get(&e))
             .cloned()
             .unwrap_or_else(Options::default);
 
-        for cmd in cmds  {
+        for cmd in cmds {
             match cmd {
-                OptionCommand::AddStringCharacter(s) => { opts.string_characters.insert(s); }
-                OptionCommand::RemoveStringCharacter(s) => { opts.string_characters.remove(&s); }
-                OptionCommand::AddSingleComment(s) => { opts.single_line_comments.insert(s); }
-                OptionCommand::RemoveSingleComment(s) => { opts.single_line_comments.remove(&s); }
-                OptionCommand::AddMultiComment(start, end) => { opts.multi_line_comments.insert((start, end)); }
-                OptionCommand::RemoveMultiComment(start, end) => { opts.multi_line_comments.remove(&(start, end)); }
+                OptionCommand::AddStringCharacter(s) => {
+                    opts.string_characters.insert(s);
+                }
+                OptionCommand::RemoveStringCharacter(s) => {
+                    opts.string_characters.remove(&s);
+                }
+                OptionCommand::AddSingleComment(s) => {
+                    opts.single_line_comments.insert(s);
+                }
+                OptionCommand::RemoveSingleComment(s) => {
+                    opts.single_line_comments.remove(&s);
+                }
+                OptionCommand::AddMultiComment(start, end) => {
+                    opts.multi_line_comments.insert((start, end));
+                }
+                OptionCommand::RemoveMultiComment(start, end) => {
+                    opts.multi_line_comments.remove(&(start, end));
+                }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
                 OptionCommand::PrintOptionsAndQuit => {}
                 OptionCommand::Language(_) => {}

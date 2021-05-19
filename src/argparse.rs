@@ -72,7 +72,11 @@ pub fn parse_args<S: AsRef<OsStr>>(args: &[S]) -> Vec<Arg> {
         } else if !rest_positional && lossy.starts_with('-') {
             let mut iter = lossy.chars();
             iter.next();
-            result.push(Arg::Short(iter.next().expect("unreachable"), s.to_os_string(), index));
+            result.push(Arg::Short(
+                iter.next().expect("unreachable"),
+                s.to_os_string(),
+                index,
+            ));
             loop {
                 let s = iter.as_str().to_string();
                 if let Some(c) = iter.next() {
@@ -94,11 +98,10 @@ mod tests {
 
     #[test]
     fn parse_simple() {
-        assert_eq!(parse_args(&["foo"]), vec![Arg::Positional(
-                "foo".into(),
-                "foo".into(),
-                1
-                )]);
+        assert_eq!(
+            parse_args(&["foo"]),
+            vec![Arg::Positional("foo".into(), "foo".into(), 1)]
+        );
         assert_eq!(
             parse_args(&["foo", "bar baz"]),
             vec![

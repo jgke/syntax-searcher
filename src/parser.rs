@@ -50,7 +50,11 @@ fn parse(
                 TokenType::Symbol(c) if options.is_open_paren(&c) => {
                     let content = parse(options, iter, true);
                     let cp = iter.next();
-                    res.push(Ast::Delimited { op: token, content, cp });
+                    res.push(Ast::Delimited {
+                        op: token,
+                        content,
+                        cp,
+                    });
                 }
                 _ => res.push(Ast::Token { token }),
             }
@@ -124,22 +128,18 @@ fn parse_query_ast(
                         matches: Box::new(prev),
                     });
                 }
-                TokenType::Regex(content) => {
-                    match Regex::new(&content) {
-                        Ok(r) => {
-                            let matcher = MatcherAst::Regex(r);
-                            iter.next();
-                            res.push(matcher);
-                        }
-                        Err(e) => {
-                            println!("{}", e);
-                            std::process::exit(1);
-                        }
+                TokenType::Regex(content) => match Regex::new(&content) {
+                    Ok(r) => {
+                        let matcher = MatcherAst::Regex(r);
+                        iter.next();
+                        res.push(matcher);
                     }
-                }
-                _ => res.push(MatcherAst::Token {
-                    token
-                }),
+                    Err(e) => {
+                        println!("{}", e);
+                        std::process::exit(1);
+                    }
+                },
+                _ => res.push(MatcherAst::Token { token }),
             }
         } else {
             break;
@@ -147,7 +147,6 @@ fn parse_query_ast(
     }
     res
 }
-
 
 pub fn parse_query<R: Read>(
     file: R,

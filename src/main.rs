@@ -11,10 +11,10 @@ mod query;
 mod run;
 mod tokenizer;
 
+use log::info;
 use std::env;
 use std::fs::File;
 use std::io;
-use log::info;
 
 use options::*;
 

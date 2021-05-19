@@ -1,7 +1,7 @@
 #![warn(missing_docs)]
 #![warn(clippy::unwrap_used)]
 
-//! syntax-scanner -- Generic source code searcher for paren-delimited languages.
+//! syntax-searcher -- Generic source code searcher for paren-delimited languages.
 
 mod argparse;
 mod options;

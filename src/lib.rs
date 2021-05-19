@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
-
-//! syntax-scanner -- Generic source code searcher for paren-delimited languages.
+// This file exists mainly to enable doctests.
+//! syntax-searcher -- Generic source code searcher for paren-delimited languages.
 
 mod argparse;
 mod options;

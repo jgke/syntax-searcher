@@ -17,6 +17,12 @@
         "single_comments": [";"],
         "multi_comments": []
     },
+    "plain": {
+        "extensions": ["txt"],
+        "strings": [],
+        "single_comments": [],
+        "multi_comments": []
+    },
     "rust": {
         "extensions": ["rs"],
         "strings": ["\""],

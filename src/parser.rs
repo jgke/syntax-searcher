@@ -125,9 +125,17 @@ fn parse_query_ast(
                     });
                 }
                 TokenType::Regex(content) => {
-                    let matcher = MatcherAst::Regex(Regex::new(&content).expect("Invalid regex matcher"));
-                    iter.next();
-                    res.push(matcher);
+                    match Regex::new(&content) {
+                        Ok(r) => {
+                            let matcher = MatcherAst::Regex(r);
+                            iter.next();
+                            res.push(matcher);
+                        }
+                        Err(e) => {
+                            println!("{}", e);
+                            std::process::exit(1);
+                        }
+                    }
                 }
                 _ => res.push(MatcherAst::Token {
                     token

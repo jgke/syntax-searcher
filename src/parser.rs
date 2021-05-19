@@ -40,20 +40,22 @@ fn parse(
 ) -> Vec<Ast> {
     let mut res = Vec::new();
     loop {
-        match iter.peek().map(|t| &t.ty) {
-            Some(TokenType::Symbol(c)) if options.is_open_paren(&c) => {
-                let op = iter.next().unwrap();
-                let content = parse(options, iter, true);
-                let cp = iter.next();
-                res.push(Ast::Delimited { op, content, cp });
-            }
-            Some(TokenType::Symbol(c)) if recur && options.is_close_paren(&c) => {
+        if let Some(TokenType::Symbol(c)) = iter.peek().map(|t| &t.ty) {
+            if recur && options.is_close_paren(&c) {
                 break;
             }
-            Some(_token) => res.push(Ast::Token {
-                token: iter.next().unwrap(),
-            }),
-            None => break,
+        }
+        if let Some(token) = iter.next() {
+            match &token.ty {
+                TokenType::Symbol(c) if options.is_open_paren(&c) => {
+                    let content = parse(options, iter, true);
+                    let cp = iter.next();
+                    res.push(Ast::Delimited { op: token, content, cp });
+                }
+                _ => res.push(Ast::Token { token }),
+            }
+        } else {
+            break;
         }
     }
     res
@@ -94,53 +96,50 @@ fn parse_query_ast(
 ) -> Vec<MatcherAst> {
     let mut res = Vec::new();
     loop {
-        match iter.peek().map(|t| &t.ty) {
-            Some(TokenType::Symbol(c)) if options.is_open_paren(&c) => {
-                let op = iter.next().unwrap();
-                let content = parse_query_ast(options, iter, true);
-                let cp = iter.next();
-                res.push(MatcherAst::Delimited { op, content, cp });
-            }
-            Some(TokenType::Symbol(c)) if recur && options.is_close_paren(&c) => {
+        if let Some(TokenType::Symbol(c)) = iter.peek().map(|t| &t.ty) {
+            if recur && options.is_close_paren(&c) {
                 break;
             }
-            Some(TokenType::Any) => {
-                assert_eq!(iter.next().map(|t| t.ty), Some(TokenType::Any));
-                res.push(MatcherAst::Any);
-            }
-            Some(TokenType::Plus) => {
-                assert_eq!(iter.next().map(|t| t.ty), Some(TokenType::Plus));
-                let prev = res.pop().unwrap();
-                res.push(MatcherAst::Plus {
-                    matches: Box::new(prev),
-                });
-            }
-            Some(TokenType::Star) => {
-                assert_eq!(iter.next().map(|t| t.ty), Some(TokenType::Star));
-                let prev = res.pop().unwrap();
-                res.push(MatcherAst::Star {
-                    matches: Box::new(prev),
-                });
-            }
-            Some(TokenType::Regex(_)) => {
-                if let Some(Token {
-                    ty: TokenType::Regex(content),
-                    ..
-                }) = iter.next()
-                {
-                    res.push(MatcherAst::Regex(Regex::new(&content).unwrap()));
-                } else {
-                    unreachable!()
+        }
+        if let Some(token) = iter.next() {
+            match &token.ty {
+                TokenType::Symbol(c) if options.is_open_paren(&c) => {
+                    let op = token;
+                    let content = parse_query_ast(options, iter, true);
+                    let cp = iter.next();
+                    res.push(MatcherAst::Delimited { op, content, cp });
                 }
+                TokenType::Any => {
+                    res.push(MatcherAst::Any);
+                }
+                TokenType::Plus => {
+                    let prev = res.pop().unwrap_or(MatcherAst::Any);
+                    res.push(MatcherAst::Plus {
+                        matches: Box::new(prev),
+                    });
+                }
+                TokenType::Star => {
+                    let prev = res.pop().unwrap_or(MatcherAst::Any);
+                    res.push(MatcherAst::Star {
+                        matches: Box::new(prev),
+                    });
+                }
+                TokenType::Regex(content) => {
+                    let matcher = MatcherAst::Regex(Regex::new(&content).expect("Invalid regex matcher"));
+                    iter.next();
+                    res.push(matcher);
+                }
+                _ => res.push(MatcherAst::Token {
+                    token
+                }),
             }
-            Some(_token) => res.push(MatcherAst::Token {
-                token: iter.next().unwrap(),
-            }),
-            None => break,
+        } else {
+            break;
         }
     }
     res
 }
+
 
 pub fn parse_query<R: Read>(
     file: R,

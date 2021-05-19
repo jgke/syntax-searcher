@@ -28,10 +28,10 @@ pub fn tokenize<R: Read>(
     options: &Options,
 ) -> (Vec<Token>, PeekableStringIterator) {
     let mut buf = String::new();
-    content.read_to_string(&mut buf).unwrap();
+    content.read_to_string(&mut buf).expect("Failed to read file to memory");
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
     let mut res = Vec::new();
-    while iter.peek().is_some() {
+    while let Some(c) = iter.peek() {
         if options
             .single_line_comments
             .iter()
@@ -48,7 +48,7 @@ pub fn tokenize<R: Read>(
             flush_multi_line_comment(&mut iter, start, end);
             continue;
         }
-        let token = match iter.peek().unwrap() {
+        let token = match c {
             _ if options.string_characters.iter().any(|c| iter.starts_with(c)) => read_string(&mut iter),
             '\\' if options.parse_as_query => read_query_command(&mut iter),
             ' ' | '\t' | '\n' => {
@@ -111,20 +111,27 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> Token {
         .filter(|c| *c != '_')
         .collect::<String>();
     if !content.contains('.') && !content.contains('e') {
+        let num = i128::from_str_radix(&content, radix).ok()
+            .or_else(|| i128::from_str_radix(&content.chars().take_while(|c| matches!(c, '0'..='9')).collect::<String>(), radix).ok())
+            .unwrap_or(0);
         Token {
-            ty: TokenType::Integer(i128::from_str_radix(&content, radix).unwrap()),
+            ty: TokenType::Integer(num),
             span,
         }
     } else {
+        let num = f64::from_str(&content).ok()
+            .or_else(|| f64::from_str(&content.chars().take_while(|c| matches!(c, '0'..='9' | '.')).collect::<String>()).ok())
+            .or_else(|| f64::from_str(&content.chars().take_while(|c| matches!(c, '0'..='9')).collect::<String>()).ok())
+            .unwrap_or(0.0);
         Token {
-            ty: TokenType::Float(f64::from_str(&content).unwrap()),
+            ty: TokenType::Float(num),
             span,
         }
     }
 }
 
 fn read_string_content(iter: &mut PeekableStringIterator) -> String {
-    let str_end = iter.next_new_span().unwrap();
+    let str_end = iter.next_new_span().expect("unreachable");
 
     let mut content = String::new();
 
@@ -179,7 +186,7 @@ fn read_other(iter: &mut PeekableStringIterator) -> Token {
 
 fn read_query_command(iter: &mut PeekableStringIterator) -> Token {
     assert_eq!(iter.next_new_span(), Some('\\'));
-    let t = match iter.peek().unwrap() {
+    let t = match iter.peek().expect("Unexpected end of query string") {
         '.' => TokenType::Any,
         '*' => TokenType::Star,
         '+' => TokenType::Plus,

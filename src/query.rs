@@ -60,7 +60,17 @@ impl Query {
                 }
                 (Some(Ast::Token { .. }), MatcherAst::Delimited { .. }) => return None,
                 (Some(Ast::Delimited { .. }), MatcherAst::Token { .. }) => return None,
-                (_, MatcherAst::Plus { .. }) => unimplemented!(),
+                (Some(mut t), MatcherAst::Plus { matches }) => {
+                    Query::ast_match(&[t.clone()], &[*matches.clone()])?;
+                    while Query::ast_match(&[t.clone()], &[*matches.clone()]).is_some() {
+                        left_pos += 1;
+                        if let Some(tt) = left.get(left_pos) {
+                            t = tt;
+                        } else {
+                            break;
+                        }
+                    }
+                }
                 (None, MatcherAst::Star { .. }) => {}
                 (Some(mut t), MatcherAst::Star { matches }) => {
                     while Query::ast_match(&[t.clone()], &[*matches.clone()]).is_some() {

@@ -232,7 +232,7 @@ fn read_query_command(iter: &mut PeekableStringIterator) -> Token {
                 span: iter.current_span(),
             };
         }
-        _ => unimplemented!(),
+        c => panic!("Unimplemented query command: {}", c)
     };
     iter.next();
     Token {

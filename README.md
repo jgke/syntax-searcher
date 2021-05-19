@@ -57,7 +57,9 @@ Options
 | `--options` | Print what options would be used for parsing and quit. |
 
 The default options will parse JavaScript. They are currently equivalent to
-`syns --lang plain -s '"' -s "'" -s '``' -c '//' -m '/*' '*/'`
+```
+syns --lang plain -s '"' -s "'" -s '`' -c '//' -m '/*' '*/'
+```
 
 If you want to parse a language which doesn't use `'` for strings (like Clojure
 or Rust), you can either use the JavaScript defaults and remove it from the

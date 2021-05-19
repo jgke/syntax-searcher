@@ -359,4 +359,19 @@ mod tests {
             opts,
         );
     }
+
+    #[test]
+    fn plus_after_regex() {
+        let mut opts = Options::new(&["syns", "foo", "foo"]);
+        opts.parse_as_query = true;
+
+        test_opts(
+            r#"\"INSERT .*" +"#,
+            vec![
+                t(TokenType::Regex("INSERT .*".to_string()), 1, 11),
+                t(TokenType::Symbol("+".to_string()), 13, 13),
+            ],
+            opts
+        );
+    }
 }

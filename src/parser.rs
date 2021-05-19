@@ -131,7 +131,6 @@ fn parse_query_ast(
                 TokenType::Regex(content) => match Regex::new(&content) {
                     Ok(r) => {
                         let matcher = MatcherAst::Regex(r);
-                        iter.next();
                         res.push(matcher);
                     }
                     Err(e) => {
@@ -154,6 +153,7 @@ pub fn parse_query<R: Read>(
 ) -> (Vec<MatcherAst>, PeekableStringIterator) {
     debug!("Tokenizing query");
     let (tokens, iter) = tokenize("query", file, options);
+    debug!("Tokenized query: {:#?}", tokens);
     debug!("Parsing query");
     (
         parse_query_ast(options, &mut tokens.into_iter().peekable(), false),

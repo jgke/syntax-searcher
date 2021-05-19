@@ -5,6 +5,7 @@ use std::iter::Peekable;
 use serde::Deserialize;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
+use log::warn;
 
 #[derive(Clone, Debug)]
 pub struct Options {
@@ -42,7 +43,11 @@ struct Defaults {
 const BUILTIN_DATABASE: &str = include_str!("../config.json");
 
 lazy_static! {
-    static ref PARSED_DB: HashMap<String, Defaults> = serde_json::from_str(BUILTIN_DATABASE).unwrap();
+    static ref PARSED_DB: HashMap<String, Defaults> = serde_json::from_str(BUILTIN_DATABASE)
+        .unwrap_or_else(|e| {
+                        warn!("Built-in JSON database has a syntax error: {}", e);
+                        HashMap::new()
+        });
     static ref EXTENSION_TO_SETTINGS: HashMap<String, Options> = {
         let mut res = HashMap::new();
 

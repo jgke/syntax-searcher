@@ -130,7 +130,6 @@ impl Iterator for PeekableStringIterator {
                 self.current_line.push(c);
             }
             self.current_span.hi = s;
-            self.debug_next(c, true);
             Some(c)
         } else {
             if self.current_line_starting_byte != 0 {
@@ -167,20 +166,6 @@ impl PeekableStringIterator {
             lines: BTreeMap::new(),
             current_line_number: 1,
             line_numbers: HashMap::new(),
-        }
-    }
-
-    fn debug_next(&self, c: char, check: bool) {
-        if false {
-            let Span { lo, hi, .. } = self.current_span();
-            println!(
-                "PeekableStringIterator: {}: {}..{}: '{}'",
-                self.filename, lo, hi, c
-            );
-            if check {
-                let f = self.iter.content();
-                assert_eq!(f[hi..].chars().next().unwrap(), c);
-            }
         }
     }
 

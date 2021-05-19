@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![warn(clippy::unwrap_used)]
 
 //! syntax-scanner -- Generic source code searcher for paren-delimited languages.
 

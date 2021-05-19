@@ -2,6 +2,9 @@ use crate::argparse::{parse_args, Arg, ArgRef};
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
+use serde::Deserialize;
+use lazy_static::lazy_static;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct Options {
@@ -14,6 +17,50 @@ pub struct Options {
     pub ranges: bool,
 
     pub only_matching: bool,
+}
+
+#[derive(Clone, Debug)]
+enum OptionCommand {
+    AddStringCharacter(String),
+    RemoveStringCharacter(String),
+    AddSingleComment(String),
+    RemoveSingleComment(String),
+    AddMultiComment(String, String),
+    RemoveMultiComment(String, String),
+    Language(String),
+    OnlyMatching,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct Defaults {
+    extensions: Vec<String>,
+    strings:  Vec<String>,
+    single_comments: Vec<String>,
+    multi_comments: Vec<(String, String)>,
+}
+
+const BUILTIN_DATABASE: &str = include_str!("../config.json");
+
+lazy_static! {
+    static ref PARSED_DB: HashMap<String, Defaults> = serde_json::from_str(BUILTIN_DATABASE).unwrap();
+    static ref EXTENSION_TO_SETTINGS: HashMap<String, Options> = {
+        let mut res = HashMap::new();
+
+        for ty in PARSED_DB.values() {
+            let opts = Options {
+                string_characters: ty.strings.iter().cloned().collect(),
+                single_line_comments: ty.single_comments.iter().cloned().collect(),
+                multi_line_comments: ty.multi_comments.iter().cloned().collect(),
+                ..Options::default()
+            };
+
+            for ext in &ty.extensions {
+                res.insert(ext.to_string(), opts.clone());
+            }
+        }
+
+        res
+    };
 }
 
 impl Default for Options {
@@ -35,7 +82,7 @@ impl Default for Options {
     }
 }
 
-fn print_help(long: bool) {
+fn print_help(long: bool, status: i32) -> ! {
     let filename = std::env::args()
         .next()
         .unwrap_or_else(|| "syns".to_string());
@@ -45,31 +92,32 @@ fn print_help(long: bool) {
 Pass --help for more information.",
             filename
         );
-        return;
-    }
-
-    println!(
-        r#"Usage: {} [OPTION]... PATTERN FILE [FILE]...
+    } else {
+        println!(
+            r#"Usage: {} [OPTION]... PATTERN FILE [FILE]...
 Search for PATTERN in each FILE.
 
 Options:
-  -h, --help                Display this message
+  -h, --help                 Display this message
+  --lang LANGUAGE            Force defaults for LANGUAGE. Call 'syns --lang'
+                             to display available languages.
 
-  -s, --[no-]string CHAR    Add or remove CHAR from string delimiters
-  -c, --[no-]comment CHARS  Add or remove CHARS from single-line comments
+  -s, --[no-]string CHAR     Add or remove CHAR from string delimiters
+  -c, --[no-]comment CHARS   Add or remove CHARS from single-line comments
   -m, --[no-]multi BEGIN END Add or remove (BEGIN, END) from multi-line comments
 
-  --[no-]single             Enable or disable single quote strings
-                            Equivalent to -s "'"
-  --[no-]double             Enable or disable double quote strings
-                            Equivalent to -s '"'
-  --[no-]backtick           Enable or disable backtick strings
-                            Equivalent to -s '`'
+  -o, --only-matching        Print only the matched parts
+"#, filename);
+    }
+    std::process::exit(status)
+}
 
-  -o, --only-matching     Print only the matched parts
-"#,
-        filename
-    )
+fn print_langs() -> ! {
+    println!("Available languages:");
+    for (lang, defs) in PARSED_DB.iter() {
+        println!("- {} [{}]", lang, defs.extensions.join(", "));
+    }
+    std::process::exit(0)
 }
 
 fn get_whole_arg<I: Iterator<Item = Arg>>(iter: &mut Peekable<I>) -> Option<OsString> {
@@ -81,120 +129,158 @@ fn get_whole_arg<I: Iterator<Item = Arg>>(iter: &mut Peekable<I>) -> Option<OsSt
     Some(arg.entire_match())
 }
 
+fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsString>) {
+    let mut opts = Vec::new();
+    let mut positionals = Vec::new();
+    let parsed = parse_args(&args[1..]);
+    let mut arg_iter = parsed.into_iter().peekable();
+
+    while let Some(arg) = arg_iter.next() {
+        let cmd = match arg.as_ref() {
+            ArgRef::Short('h') => print_help(false, 0),
+            ArgRef::Long("help") => print_help(true, 0),
+            ArgRef::Long("lang") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::Language(arg.to_string_lossy().to_string())
+                } else {
+                    print_langs()
+                }
+            }
+
+            ArgRef::Short('s') | ArgRef::Long("string") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::AddStringCharacter(arg.to_string_lossy().to_string())
+                } else {
+                    println!("Missing argument for --string");
+                    print_help(false, 1)
+                }
+            }
+            ArgRef::Long("no-string") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::RemoveStringCharacter(arg.to_string_lossy().to_string())
+                } else {
+                    println!("Missing argument for --no-string");
+                    print_help(false, 1)
+                }
+            }
+
+            ArgRef::Short('c') | ArgRef::Long("comment") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::AddSingleComment(arg.to_string_lossy().to_string())
+                } else {
+                    println!("Missing argument for --comment");
+                    print_help(false, 1)
+                }
+            }
+            ArgRef::Long("no-comment") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::RemoveSingleComment(arg.to_string_lossy().to_string())
+                } else {
+                    println!("Missing argument for --no-comment");
+                    print_help(false, 1)
+                }
+            }
+
+            ArgRef::Short('m') | ArgRef::Long("multi") => {
+                if let Some(start) = get_whole_arg(&mut arg_iter) {
+                    if let Some(end) = get_whole_arg(&mut arg_iter) {
+                        OptionCommand::AddMultiComment(
+                                start.to_string_lossy().to_string(),
+                                end.to_string_lossy().to_string(),
+                        )
+                    } else {
+                    println!("Missing second argument for --multi");
+                    print_help(false, 1)
+                }
+                } else {
+                    println!("Missing argument for --multi");
+                    print_help(false, 1)
+                }
+            }
+            ArgRef::Long("no-multi") => {
+                if let Some(start) = get_whole_arg(&mut arg_iter) {
+                    if let Some(end) = get_whole_arg(&mut arg_iter) {
+                        OptionCommand::RemoveMultiComment(
+                                start.to_string_lossy().to_string(),
+                                end.to_string_lossy().to_string(),
+                        )
+                    } else {
+                    println!("Missing second argument for --no-multi");
+                    print_help(false, 1)
+                }
+                } else {
+                    println!("Missing argument for --no-multi");
+                    print_help(false, 1)
+                }
+            }
+
+            ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
+
+            ArgRef::Positional(_) => {
+                positionals.push(arg.entire_match());
+                continue;
+            }
+
+            ArgRef::Short(s) => {
+                println!("Unknown flag: -{}", s);
+                print_help(false, 1)
+            }
+            ArgRef::Long(s) => {
+                println!("Unknown flag: --{}", s);
+                print_help(false, 1)
+            }
+        };
+        opts.push(cmd);
+    }
+
+    (opts, positionals)
+}
+
 impl Options {
     pub fn new<S: AsRef<OsStr>>(args: &[S]) -> Options {
-        let mut opts: Options = Default::default();
-        let mut query: Option<OsString> = None;
-        let mut files: Vec<OsString> = Vec::new();
+        let (cmds, positionals) = parse_options(args);
 
-        let parsed = parse_args(&args[1..]);
-        let mut arg_iter = parsed.into_iter().peekable();
+        if positionals.is_empty() {
+            println!("Missing required argument: PATTERN\n");
+            print_help(false, 1);
+        } else if positionals.len() == 1 {
+            println!("Missing required argument: FILE\n");
+            print_help(false, 1);
+        }
 
-        #[allow(clippy::while_let_on_iterator)]
-        while let Some(arg) = arg_iter.next() {
-            match arg.as_ref() {
-                ArgRef::Short('h') => {
-                    print_help(false);
-                    std::process::exit(0);
-                }
-                ArgRef::Long("help") => {
-                    print_help(true);
-                    std::process::exit(0);
-                }
+        let query = positionals[0].clone();
 
-                ArgRef::Short('s') | ArgRef::Long("string") => {
-                    if let Some(arg) = get_whole_arg(&mut arg_iter) {
-                        opts.string_characters.insert(arg.to_string_lossy().to_string());
-                    }
-                }
-                ArgRef::Long("no-string") => {
-                    if let Some(arg) = get_whole_arg(&mut arg_iter) {
-                        opts.string_characters.remove(&arg.to_string_lossy().to_string());
-                    }
-                }
+        let files: Vec<OsString> = positionals.into_iter().skip(1).collect();
 
-                ArgRef::Short('c') | ArgRef::Long("comment") => {
-                    if let Some(arg) = get_whole_arg(&mut arg_iter) {
-                        opts.single_line_comments.insert(arg.to_string_lossy().to_string());
-                    }
-                }
-                ArgRef::Long("no-comment") => {
-                    if let Some(arg) = get_whole_arg(&mut arg_iter) {
-                        opts.single_line_comments.remove(&arg.to_string_lossy().to_string());
-                    }
-                }
+        let file_path = std::path::Path::new(&files[0]);
+        let extension = file_path.extension();
 
-                ArgRef::Short('m') | ArgRef::Long("multi") => {
-                    if let Some(start) = get_whole_arg(&mut arg_iter) {
-                        if let Some(end) = get_whole_arg(&mut arg_iter) {
-                            opts.multi_line_comments.insert((start.to_string_lossy().to_string(), end.to_string_lossy().to_string()));
-                        }
-                    }
-                }
-                ArgRef::Long("no-multi") => {
-                    if let Some(start) = get_whole_arg(&mut arg_iter) {
-                        if let Some(end) = get_whole_arg(&mut arg_iter) {
-                            opts.multi_line_comments.remove(&(start.to_string_lossy().to_string(), end.to_string_lossy().to_string()));
-                        }
-                    }
-                }
+        let mut opts: Options =
+            cmds.iter().filter_map(|c| if let OptionCommand::Language(l) = c {
+                Some(PARSED_DB[l].extensions[0].to_string())
+            } else {
+                None
+            })
+        .last()
+            .or_else(|| extension.map(|e| e.to_string_lossy().to_string()))
+            .and_then(|e| EXTENSION_TO_SETTINGS.get(&e))
+            .cloned()
+            .unwrap_or_else(Options::default);
 
-
-                ArgRef::Long("single") => {
-                    opts.string_characters.insert("'".to_string());
-                }
-                ArgRef::Long("no-single") => {
-                    opts.string_characters.remove("'");
-                }
-
-                ArgRef::Long("double") => {
-                    opts.string_characters.insert("\"".to_string());
-                }
-                ArgRef::Long("no-double") => {
-                    opts.string_characters.remove("\"");
-                }
-
-                ArgRef::Long("backtick") => {
-                    opts.string_characters.insert("`".to_string());
-                }
-                ArgRef::Long("no-backtick") => {
-                    opts.string_characters.remove("`");
-                }
-
-                ArgRef::Short('o') | ArgRef::Long("only-matching") => opts.only_matching = true,
-
-                ArgRef::Positional(_) => {
-                    if query.is_none() {
-                        query = Some(arg.into());
-                    } else {
-                        files.push(arg.into());
-                    }
-                }
-
-                ArgRef::Short(s) => {
-                    println!("Unknown flag: -{}", s);
-                    print_help(false);
-                    std::process::exit(1);
-                }
-                ArgRef::Long(s) => {
-                    println!("Unknown flag: --{}", s);
-                    print_help(false);
-                    std::process::exit(1);
-                }
+        for cmd in cmds  {
+            match cmd {
+                OptionCommand::AddStringCharacter(s) => { opts.string_characters.insert(s); }
+                OptionCommand::RemoveStringCharacter(s) => { opts.string_characters.remove(&s); }
+                OptionCommand::AddSingleComment(s) => { opts.single_line_comments.insert(s); }
+                OptionCommand::RemoveSingleComment(s) => { opts.single_line_comments.remove(&s); }
+                OptionCommand::AddMultiComment(start, end) => { opts.multi_line_comments.insert((start, end)); }
+                OptionCommand::RemoveMultiComment(start, end) => { opts.multi_line_comments.remove(&(start, end)); }
+                OptionCommand::OnlyMatching => opts.only_matching = true,
+                OptionCommand::Language(_) => {}
             }
         }
 
-        if query.is_none() {
-            println!("Missing required argument: PATTERN\n");
-            print_help(false);
-            std::process::exit(1);
-        } else if files.is_empty() {
-            println!("Missing required argument: FILE\n");
-            print_help(false);
-            std::process::exit(1);
-        }
-
-        opts.query = query.unwrap().to_string_lossy().to_string();
+        opts.query = query.to_string_lossy().to_string();
         opts.filename = files[0].to_string_lossy().to_string();
 
         opts

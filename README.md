@@ -137,6 +137,11 @@ https://unix.stackexchange.com/questions/147662/grep-upto-matching-brackets
 language-specific parsers. This enables language-specific semantic analysis,
 but with the tradeoff of supporting only a handful of languages.
 
+`comby` https://comby.dev/ Comby is a very similar tool to syns, built from
+pretty much the same design choices as syns. Comby is also older and more
+mature than syns, and supports more things, so you probably want to check it
+out. Comby is more oriented to replacing text though.
+
 License
 =======
 

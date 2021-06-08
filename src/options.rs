@@ -9,7 +9,7 @@ use std::iter::Peekable;
 
 #[derive(Clone, Debug)]
 pub struct Options {
-    pub filename: String,
+    pub paths: Vec<OsString>,
     pub query: String,
     pub parse_as_query: bool,
     pub string_characters: HashSet<String>,
@@ -72,7 +72,7 @@ lazy_static! {
 impl Default for Options {
     fn default() -> Options {
         Options {
-            filename: "".to_string(),
+            paths: Vec::new(),
             query: "".to_string(),
             parse_as_query: false,
             string_characters: ["\"", "'", "`"].iter().map(|s| s.to_string()).collect(),
@@ -94,14 +94,14 @@ fn print_help(long: bool, status: i32) -> ! {
         .unwrap_or_else(|| "syns".to_string());
     if !long {
         println!(
-            "Usage: {} [OPTION]... PATTERN FILE
+            "Usage: {} [OPTION]... PATTERN PATH...
 Pass --help for more information.",
             filename
         );
     } else {
         println!(
-            r#"Usage: {} [OPTION]... PATTERN FILE
-Search for PATTERN in FILE.
+            r#"Usage: {} [OPTION]... PATTERN PATH...
+Search for PATTERN in PATHs.
 
 Options:
   -h, --help                 Display this message
@@ -285,11 +285,7 @@ impl Options {
         if positionals.is_empty() && !print_and_quit {
             println!("Missing required argument: PATTERN\n");
             print_help(false, 1);
-        } else if positionals.len() == 1 && !print_and_quit {
-            println!("Missing required argument: FILE\n");
-            print_help(false, 1);
-        }
-
+        };
         let query = positionals
             .get(0)
             .unwrap_or(&empty_osstring)
@@ -348,7 +344,7 @@ impl Options {
         }
 
         opts.query = query;
-        opts.filename = files[0].to_string_lossy().to_string();
+        opts.paths = files;
 
         opts
     }
@@ -370,7 +366,7 @@ mod tests {
     fn parse_options() {
         let options = Options::new(&vec!["syns", "query", "filename"]);
         assert_eq!(options.query, "query");
-        assert_eq!(options.filename, "filename");
+        assert_eq!(options.paths[0], "filename");
         assert_eq!(options.parse_as_query, false);
     }
 

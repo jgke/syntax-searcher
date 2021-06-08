@@ -100,8 +100,6 @@ Testing
 Unimplemented features
 ======================
 
-- Handle multiple file arguments
-- Handle directories as arguments (recursively match every file under that directory)
 - Handle stdin ('-') as argument
 - More language-specific defaults
 - More parsing strategies

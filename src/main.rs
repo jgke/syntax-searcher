@@ -11,12 +11,24 @@ mod query;
 mod run;
 mod tokenizer;
 
+use ignore::WalkBuilder;
 use log::info;
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io;
 
 use options::*;
+
+fn run_file(options: &Options, file: Result<ignore::DirEntry, ignore::Error>) -> Result<(), Box<dyn std::error::Error>> {
+    let file = file?;
+    let path = file.path();
+    let attr = fs::metadata(&path)?;
+    if !attr.is_dir() {
+        let fp = File::open(&path)?;
+        run::run(options, &path, fp);
+    }
+    Ok(())
+}
 
 #[cfg(not(tarpaulin_include))]
 fn main() -> io::Result<()> {
@@ -26,7 +38,15 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let options = Options::new(&args);
     info!("Using options: {:#?}", options);
-    let fp = File::open(&options.filename)?;
-    run::run(options, fp);
+    let default_path = "./".into();
+    let mut walker = WalkBuilder::new(options.paths.get(0).unwrap_or(&default_path));
+    for path in options.paths.iter().skip(1) {
+        walker.add(path);
+    }
+    for f in walker.build() {
+        if let Err(e) = run_file(&options, f) {
+            println!("Err: {}", e);
+        }
+    }
     Ok(())
 }

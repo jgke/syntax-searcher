@@ -27,10 +27,9 @@ pub fn tokenize<R: Read>(
     mut content: R,
     options: &Options,
 ) -> (Vec<Token>, PeekableStringIterator) {
-    let mut buf = String::new();
-    content
-        .read_to_string(&mut buf)
-        .expect("Failed to read file to memory");
+    let mut file_buf = vec![];
+    content.read_to_end(&mut file_buf).expect("Failed to read file to memory");
+    let buf = String::from_utf8_lossy(&file_buf).to_string();
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
     let mut res = Vec::new();
     while let Some(c) = iter.peek() {

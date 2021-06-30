@@ -19,7 +19,10 @@ use std::io;
 
 use options::*;
 
-fn run_file(options: &Options, file: Result<ignore::DirEntry, ignore::Error>) -> Result<(), Box<dyn std::error::Error>> {
+fn run_file(
+    options: &Options,
+    file: Result<ignore::DirEntry, ignore::Error>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let file = file?;
     let path = file.path();
     let attr = fs::metadata(&path)?;

@@ -90,6 +90,8 @@ can be matched using backslash. The following commands are available:
 | `\.` | Match any token or paren-delimited tree. |
 | `\+` | Match the previous pattern one or more times. |
 | `\*` | Match the previous pattern zero or more times. |
+| `\$` | Match end-of-file. `a (b \$) c matches `a (b) c` but not `a (b c) d`. |
+| `\|` | Match either left or right side. `a b \| c d` matches either `a b` or `c d`. |
 | `\"regex"` | Match any string literal with the regex pattern `regex`. |
 
 Testing
@@ -111,8 +113,6 @@ Unimplemented features
         - Clojure/Ruby keyword literal
         - Arbitrary number suffixes (eg. CSS: 15px)
 - More query improvements
-    - Match group end with `\$`
-    - Or-pattern with `\|`
     - Pattern grouping with `\(\)`
     - Backtracking matching
         - Currently the query doesn't backtrack, so it doesn't match everything it should

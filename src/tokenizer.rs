@@ -13,6 +13,8 @@ pub enum TokenType {
     Any,
     Star,
     Plus,
+    End,
+    Or,
     Regex(String),
 }
 
@@ -28,7 +30,9 @@ pub fn tokenize<R: Read>(
     options: &Options,
 ) -> (Vec<Token>, PeekableStringIterator) {
     let mut file_buf = vec![];
-    content.read_to_end(&mut file_buf).expect("Failed to read file to memory");
+    content
+        .read_to_end(&mut file_buf)
+        .expect("Failed to read file to memory");
     let buf = String::from_utf8_lossy(&file_buf).to_string();
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
     let mut res = Vec::new();
@@ -224,6 +228,8 @@ fn read_query_command(iter: &mut PeekableStringIterator) -> Token {
         '.' => TokenType::Any,
         '*' => TokenType::Star,
         '+' => TokenType::Plus,
+        '$' => TokenType::End,
+        '|' => TokenType::Or,
         '"' => {
             let ty = TokenType::Regex(read_string_content(iter));
             return Token {
@@ -231,7 +237,7 @@ fn read_query_command(iter: &mut PeekableStringIterator) -> Token {
                 span: iter.current_span(),
             };
         }
-        c => panic!("Unimplemented query command: {}", c)
+        c => panic!("Unimplemented query command: {}", c),
     };
     iter.next();
     Token {
@@ -370,7 +376,7 @@ mod tests {
                 t(TokenType::Regex("INSERT .*".to_string()), 1, 11),
                 t(TokenType::Symbol("+".to_string()), 13, 13),
             ],
-            opts
+            opts,
         );
     }
 }

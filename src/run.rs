@@ -77,4 +77,74 @@ mod tests {
             }
         ));
     }
+
+    #[test]
+    fn test_or_match() {
+        let mut res;
+
+        res = run_all(Options::new(&["syns", "a \\| b", "-"]), "a".as_bytes());
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].t.len(), 1);
+
+        res = run_all(Options::new(&["syns", "a \\| b", "-"]), "b".as_bytes());
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].t.len(), 1);
+
+        res = run_all(
+            Options::new(&["syns", "a \\| b \\| c", "-"]),
+            "c".as_bytes(),
+        );
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].t.len(), 1);
+
+        res = run_all(
+            Options::new(&["syns", "a \\| b \\| c", "-"]),
+            "d".as_bytes(),
+        );
+        assert_eq!(res.len(), 0);
+
+        res = run_all(
+            Options::new(&["syns", "a b \\| c d \\| e f", "-"]),
+            "a b".as_bytes(),
+        );
+        assert_eq!(res.len(), 1);
+        res = run_all(
+            Options::new(&["syns", "a b \\| c d \\| e f", "-"]),
+            "c d".as_bytes(),
+        );
+        assert_eq!(res.len(), 1);
+        res = run_all(
+            Options::new(&["syns", "a b \\| c d \\| e f", "-"]),
+            "e f".as_bytes(),
+        );
+        assert_eq!(res.len(), 1);
+    }
+
+    #[test]
+    fn test_end_match() {
+        let res = run_all(
+            Options::new(&["syns", "a (b \\$) c", "-"]),
+            "a (b) c".as_bytes(),
+        );
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].t.len(), 3);
+
+        let res2 = run_all(
+            Options::new(&["syns", "a (b \\$) c", "-"]),
+            "a (b c) c".as_bytes(),
+        );
+        assert_eq!(res2.len(), 0);
+
+        let res3 = run_all(
+            Options::new(&["syns", "a (\\$) c", "-"]),
+            "a (b c) c".as_bytes(),
+        );
+        assert_eq!(res3.len(), 0);
+
+        let res4 = run_all(
+            Options::new(&["syns", "a (\\$) c", "-"]),
+            "a () c".as_bytes(),
+        );
+        assert_eq!(res4.len(), 1);
+    }
 }

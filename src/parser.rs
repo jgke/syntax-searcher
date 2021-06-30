@@ -90,6 +90,11 @@ pub enum MatcherAst {
     Star {
         matches: Box<MatcherAst>,
     },
+    Or {
+        this: Vec<MatcherAst>,
+        that: Vec<MatcherAst>,
+    },
+    End,
     Regex(Regex),
 }
 
@@ -122,11 +127,19 @@ fn parse_query_ast(
                         matches: Box::new(prev),
                     });
                 }
+                TokenType::Or => {
+                    let this = res.drain(..).collect();
+                    let that = parse_query_ast(options, iter, true);
+                    res.push(MatcherAst::Or { this, that });
+                }
                 TokenType::Star => {
                     let prev = res.pop().unwrap_or(MatcherAst::Any);
                     res.push(MatcherAst::Star {
                         matches: Box::new(prev),
                     });
+                }
+                TokenType::End => {
+                    res.push(MatcherAst::End);
                 }
                 TokenType::Regex(content) => match Regex::new(&content) {
                     Ok(r) => {
@@ -138,7 +151,11 @@ fn parse_query_ast(
                         std::process::exit(1);
                     }
                 },
-                _ => res.push(MatcherAst::Token { token }),
+                TokenType::Identifier(_)
+                | TokenType::Integer(_)
+                | TokenType::Float(_)
+                | TokenType::StringLiteral(_)
+                | TokenType::Symbol(_) => res.push(MatcherAst::Token { token }),
             }
         } else {
             break;

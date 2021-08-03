@@ -19,7 +19,7 @@ pub fn run<R: Read>(options: &Options, filename: &Path, file: R) {
     debug!("Enumerating matches");
     for m in query.matches(&file) {
         debug!("Match: {:#?}", &m);
-        if m.t.len() == 0 {
+        if m.t.is_empty() {
             continue;
         }
         let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
@@ -82,72 +82,38 @@ mod tests {
     }
 
     #[test]
-    fn test_or_match() {
-        let mut res;
-
-        res = run_all(Options::new(&["syns", "a \\| b", "-"]), "a".as_bytes());
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].t.len(), 1);
-
-        res = run_all(Options::new(&["syns", "a \\| b", "-"]), "b".as_bytes());
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].t.len(), 1);
-
-        res = run_all(
-            Options::new(&["syns", "a \\| b \\| c", "-"]),
-            "c".as_bytes(),
-        );
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].t.len(), 1);
-
-        res = run_all(
-            Options::new(&["syns", "a \\| b \\| c", "-"]),
-            "d".as_bytes(),
-        );
-        assert_eq!(res.len(), 0);
-
-        res = run_all(
-            Options::new(&["syns", "a b \\| c d \\| e f", "-"]),
-            "a b".as_bytes(),
-        );
-        assert_eq!(res.len(), 1);
-        res = run_all(
-            Options::new(&["syns", "a b \\| c d \\| e f", "-"]),
-            "c d".as_bytes(),
-        );
-        assert_eq!(res.len(), 1);
-        res = run_all(
-            Options::new(&["syns", "a b \\| c d \\| e f", "-"]),
-            "e f".as_bytes(),
-        );
-        assert_eq!(res.len(), 1);
-    }
-
-    #[test]
-    fn test_end_match() {
-        let res = run_all(
-            Options::new(&["syns", "a (b \\$) c", "-"]),
-            "a (b) c".as_bytes(),
-        );
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].t.len(), 3);
-
-        let res2 = run_all(
-            Options::new(&["syns", "a (b \\$) c", "-"]),
-            "a (b c) c".as_bytes(),
-        );
-        assert_eq!(res2.len(), 0);
-
-        let res3 = run_all(
-            Options::new(&["syns", "a (\\$) c", "-"]),
-            "a (b c) c".as_bytes(),
-        );
-        assert_eq!(res3.len(), 0);
-
-        let res4 = run_all(
-            Options::new(&["syns", "a (\\$) c", "-"]),
-            "a () c".as_bytes(),
-        );
-        assert_eq!(res4.len(), 1);
+    fn test_longest_match() {
+        let res = run_all(Options::new(&["syns", "\\.\\*", "-"]), "a a".as_bytes());
+        dbg!(&res);
+        assert_eq!(res.len(), 2);
+        assert_eq!(res[0].t.len(), 2);
+        assert_eq!(res[1].t.len(), 1);
+        assert!(matches!(
+            res[0].t[0],
+            Ast::Token {
+                token: Token {
+                    ty: TokenType::Identifier(_),
+                    span: Span { lo: 0, hi: 0 }
+                }
+            }
+        ));
+        assert!(matches!(
+            res[0].t[1],
+            Ast::Token {
+                token: Token {
+                    ty: TokenType::Identifier(_),
+                    span: Span { lo: 2, hi: 2 }
+                }
+            }
+        ));
+        assert!(matches!(
+            res[1].t[0],
+            Ast::Token {
+                token: Token {
+                    ty: TokenType::Identifier(_),
+                    span: Span { lo: 2, hi: 2 }
+                }
+            }
+        ));
     }
 }

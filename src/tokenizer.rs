@@ -1,40 +1,101 @@
 use crate::options::Options;
 use crate::psi::{PeekableStringIterator, Span};
+use crate::wrappers::Float;
+use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum TokenType {
-    Identifier(String),
-    Integer(i128),
-    Float(f64),
-    StringLiteral(String),
-    Symbol(String),
+pub enum SpecialTokenType {
     Any,
     Star,
     Plus,
-    End,
-    Or,
     Regex(String),
+    Nested(Vec<QueryToken>),
 }
 
-#[derive(Clone, Debug)]
-pub struct Token {
+#[derive(Clone, Debug, PartialEq, Hash)]
+pub enum StandardTokenType {
+    Identifier(String),
+    Integer(i128),
+    Float(Float),
+    StringLiteral(String),
+    Symbol(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TokenType {
+    Standard(StandardTokenType),
+    Special(SpecialTokenType),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StandardToken {
+    pub ty: StandardTokenType,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueryToken {
     pub ty: TokenType,
     pub span: Span,
+}
+
+impl TryFrom<QueryToken> for StandardToken {
+    type Error = ();
+
+    fn try_from(f: QueryToken) -> Result<Self, Self::Error> {
+        match f {
+            QueryToken {
+                ty: TokenType::Standard(ty),
+                span,
+            } => Ok(StandardToken { ty, span }),
+            QueryToken {
+                ty: TokenType::Special(_),
+                ..
+            } => Err(()),
+        }
+    }
 }
 
 pub fn tokenize<R: Read>(
     filename: &str,
     mut content: R,
     options: &Options,
-) -> (Vec<Token>, PeekableStringIterator) {
+) -> (Vec<StandardToken>, PeekableStringIterator) {
+    assert!(!options.parse_as_query);
     let mut file_buf = vec![];
     content
         .read_to_end(&mut file_buf)
         .expect("Failed to read file to memory");
     let buf = String::from_utf8_lossy(&file_buf).to_string();
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
+    let res = tokenize_recur(&mut iter, options, false)
+        .into_iter()
+        .map(|t| t.try_into().expect("Unreachable"))
+        .collect();
+    (res, iter)
+}
+
+pub fn tokenize_query<R: Read>(
+    mut content: R,
+    options: &Options,
+) -> (Vec<QueryToken>, PeekableStringIterator) {
+    let mut file_buf = vec![];
+    content
+        .read_to_end(&mut file_buf)
+        .expect("Failed to read file to memory");
+    let buf = String::from_utf8_lossy(&file_buf).to_string();
+    let mut iter = PeekableStringIterator::new("<query>".to_string(), buf);
+    let res = tokenize_recur(&mut iter, options, false);
+    (res, iter)
+}
+
+pub fn tokenize_recur(
+    iter: &mut PeekableStringIterator,
+    options: &Options,
+    recur: bool,
+) -> Vec<QueryToken> {
     let mut res = Vec::new();
     while let Some(c) = iter.peek() {
         if options
@@ -42,7 +103,7 @@ pub fn tokenize<R: Read>(
             .iter()
             .any(|c| iter.starts_with(c))
         {
-            flush_single_line(&mut iter);
+            flush_single_line(iter);
             continue;
         }
         if let Some((start, end)) = options
@@ -50,7 +111,7 @@ pub fn tokenize<R: Read>(
             .iter()
             .find(|(start, _)| iter.starts_with(start))
         {
-            flush_multi_line_comment(&mut iter, start, end);
+            flush_multi_line_comment(iter, start, end);
             continue;
         }
         let token = match c {
@@ -59,20 +120,26 @@ pub fn tokenize<R: Read>(
                 .iter()
                 .any(|c| iter.starts_with(c)) =>
             {
-                read_string(&mut iter)
+                read_string(iter)
             }
-            '\\' if options.parse_as_query => read_query_command(&mut iter),
+            '\\' if options.parse_as_query => {
+                assert_eq!(iter.next_new_span(), Some('\\'));
+                if recur && iter.peek() == Some(')') {
+                    break;
+                }
+                read_query_command(iter, options)
+            }
             ' ' | '\t' | '\n' => {
                 iter.next();
                 continue;
             }
-            'a'..='z' | 'A'..='Z' | '_' => read_identifier(&mut iter),
-            '0'..='9' => read_number(&mut iter, options),
-            _ => read_other(&mut iter),
+            'a'..='z' | 'A'..='Z' | '_' => read_identifier(iter),
+            '0'..='9' => read_number(iter, options),
+            _ => read_other(iter),
         };
         res.push(token);
     }
-    (res, iter)
+    res
 }
 
 fn flush_single_line(iter: &mut PeekableStringIterator) {
@@ -95,7 +162,7 @@ fn flush_multi_line_comment(iter: &mut PeekableStringIterator, start: &str, end:
     }
 }
 
-fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> Token {
+fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
     let radix_str = iter.peek_n(2);
     let radix = match radix_str.as_ref() {
         "0b" => {
@@ -135,8 +202,8 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> Token {
                 .ok()
             })
             .unwrap_or(0);
-        Token {
-            ty: TokenType::Integer(num),
+        QueryToken {
+            ty: TokenType::Standard(StandardTokenType::Integer(num)),
             span,
         }
     } else {
@@ -161,8 +228,8 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> Token {
                 .ok()
             })
             .unwrap_or(0.0);
-        Token {
-            ty: TokenType::Float(num),
+        QueryToken {
+            ty: TokenType::Standard(StandardTokenType::Float(num.into())),
             span,
         }
     }
@@ -191,56 +258,64 @@ fn read_string_content(iter: &mut PeekableStringIterator) -> String {
     content
 }
 
-fn read_string(iter: &mut PeekableStringIterator) -> Token {
+fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
     let content = read_string_content(iter);
-    Token {
-        ty: TokenType::StringLiteral(content),
+    QueryToken {
+        ty: TokenType::Standard(StandardTokenType::StringLiteral(content)),
         span: iter.current_span(),
     }
 }
 
-fn read_identifier(iter: &mut PeekableStringIterator) -> Token {
+fn read_identifier(iter: &mut PeekableStringIterator) -> QueryToken {
     let (content, span) = iter.collect_while(|c| {
         matches!(c,
             '0'..='9' | 'a'..='z' | 'A'..='Z' | '_'
         )
     });
 
-    Token {
-        ty: TokenType::Identifier(content),
+    QueryToken {
+        ty: TokenType::Standard(StandardTokenType::Identifier(content)),
         span,
     }
 }
 
-fn read_other(iter: &mut PeekableStringIterator) -> Token {
+fn read_other(iter: &mut PeekableStringIterator) -> QueryToken {
     match iter.next_new_span() {
-        Some(c) => Token {
-            ty: TokenType::Symbol(c.to_string()),
+        Some(c) => QueryToken {
+            ty: TokenType::Standard(StandardTokenType::Symbol(c.to_string())),
             span: iter.current_span(),
         },
         None => panic!("Unexpected end of file"),
     }
 }
 
-fn read_query_command(iter: &mut PeekableStringIterator) -> Token {
-    assert_eq!(iter.next_new_span(), Some('\\'));
+fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
     let t = match iter.peek().expect("Unexpected end of query string") {
-        '.' => TokenType::Any,
-        '*' => TokenType::Star,
-        '+' => TokenType::Plus,
-        '$' => TokenType::End,
-        '|' => TokenType::Or,
+        '.' => TokenType::Special(SpecialTokenType::Any),
+        '*' => TokenType::Special(SpecialTokenType::Star),
+        '+' => TokenType::Special(SpecialTokenType::Plus),
         '"' => {
-            let ty = TokenType::Regex(read_string_content(iter));
-            return Token {
+            let ty = TokenType::Special(SpecialTokenType::Regex(read_string_content(iter)));
+            return QueryToken {
                 ty,
+                span: iter.current_span(),
+            };
+        }
+        '(' => {
+            assert_eq!(iter.next(), Some('('));
+            let tts = TokenType::Special(SpecialTokenType::Nested(tokenize_recur(
+                iter, options, true,
+            )));
+            assert_eq!(iter.next(), Some(')'));
+            return QueryToken {
+                ty: tts,
                 span: iter.current_span(),
             };
         }
         c => panic!("Unimplemented query command: {}", c),
     };
     iter.next();
-    Token {
+    QueryToken {
         ty: t,
         span: iter.current_span(),
     }
@@ -250,15 +325,15 @@ fn read_query_command(iter: &mut PeekableStringIterator) -> Token {
 mod tests {
     use crate::tokenizer::*;
 
-    fn t(ty: TokenType, lo: usize, hi: usize) -> Token {
-        Token {
+    fn t(ty: TokenType, lo: usize, hi: usize) -> QueryToken {
+        QueryToken {
             ty,
             span: Span { lo, hi },
         }
     }
 
-    fn test_opts(input: &str, expected: Vec<Token>, options: Options) {
-        let (tokens, _) = tokenize("foo", input.as_bytes(), &options);
+    fn test_opts(input: &str, expected: Vec<QueryToken>, options: Options) {
+        let (tokens, _) = tokenize_query(input.as_bytes(), &options);
         assert_eq!(
             tokens.iter().map(|t| &t.ty).collect::<Vec<_>>(),
             expected.iter().map(|t| &t.ty).collect::<Vec<_>>()
@@ -269,7 +344,7 @@ mod tests {
         );
     }
 
-    fn test(input: &str, expected: Vec<Token>) {
+    fn test(input: &str, expected: Vec<QueryToken>) {
         test_opts(input, expected, Options::new(&["syns", "foo", "foo"]))
     }
 
@@ -278,9 +353,17 @@ mod tests {
         test(
             "foo 123 \"bar\"",
             vec![
-                t(TokenType::Identifier("foo".to_string()), 0, 2),
-                t(TokenType::Integer(123), 4, 6),
-                t(TokenType::StringLiteral("bar".to_string()), 8, 12),
+                t(
+                    TokenType::Standard(StandardTokenType::Identifier("foo".to_string())),
+                    0,
+                    2,
+                ),
+                t(TokenType::Standard(StandardTokenType::Integer(123)), 4, 6),
+                t(
+                    TokenType::Standard(StandardTokenType::StringLiteral("bar".to_string())),
+                    8,
+                    12,
+                ),
             ],
         );
     }
@@ -290,9 +373,21 @@ mod tests {
         test(
             "foo /* bar */ baz\ngux //baz",
             vec![
-                t(TokenType::Identifier("foo".to_string()), 0, 2),
-                t(TokenType::Identifier("baz".to_string()), 14, 16),
-                t(TokenType::Identifier("gux".to_string()), 18, 20),
+                t(
+                    TokenType::Standard(StandardTokenType::Identifier("foo".to_string())),
+                    0,
+                    2,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Identifier("baz".to_string())),
+                    14,
+                    16,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Identifier("gux".to_string())),
+                    18,
+                    20,
+                ),
             ],
         );
     }
@@ -302,25 +397,48 @@ mod tests {
         test(
             "123 0b101 0x123FG",
             vec![
-                t(TokenType::Integer(123), 0, 2),
-                t(TokenType::Integer(0b101), 6, 8),
-                t(TokenType::Integer(0x123f), 12, 15),
-                t(TokenType::Identifier("G".to_string()), 16, 16),
+                t(TokenType::Standard(StandardTokenType::Integer(123)), 0, 2),
+                t(TokenType::Standard(StandardTokenType::Integer(0b101)), 6, 8),
+                t(
+                    TokenType::Standard(StandardTokenType::Integer(0x123f)),
+                    12,
+                    15,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Identifier("G".to_string())),
+                    16,
+                    16,
+                ),
             ],
         );
 
         test(
             "12.23 2.3e5",
             vec![
-                t(TokenType::Float(12.23), 0, 4),
-                t(TokenType::Float(230000.0), 6, 10),
+                t(
+                    TokenType::Standard(StandardTokenType::Float(12.23.into())),
+                    0,
+                    4,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Float(230000.0.into())),
+                    6,
+                    10,
+                ),
             ],
         );
     }
 
     #[test]
     fn operators() {
-        test("+", vec![t(TokenType::Symbol("+".to_string()), 0, 0)]);
+        test(
+            "+",
+            vec![t(
+                TokenType::Standard(StandardTokenType::Symbol("+".to_string())),
+                0,
+                0,
+            )],
+        );
     }
 
     #[test]
@@ -328,9 +446,21 @@ mod tests {
         test(
             r#""foo" "bar\"" 'baz\''"#,
             vec![
-                t(TokenType::StringLiteral("foo".to_string()), 0, 4),
-                t(TokenType::StringLiteral("bar\\\"".to_string()), 6, 12),
-                t(TokenType::StringLiteral("baz\\'".to_string()), 14, 20),
+                t(
+                    TokenType::Standard(StandardTokenType::StringLiteral("foo".to_string())),
+                    0,
+                    4,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::StringLiteral("bar\\\"".to_string())),
+                    6,
+                    12,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::StringLiteral("baz\\'".to_string())),
+                    14,
+                    20,
+                ),
             ],
         );
     }
@@ -340,14 +470,46 @@ mod tests {
         test(
             r#"\.\+\*\"foo.*bar""#,
             vec![
-                t(TokenType::Symbol("\\".to_string()), 0, 0),
-                t(TokenType::Symbol(".".to_string()), 1, 1),
-                t(TokenType::Symbol("\\".to_string()), 2, 2),
-                t(TokenType::Symbol("+".to_string()), 3, 3),
-                t(TokenType::Symbol("\\".to_string()), 4, 4),
-                t(TokenType::Symbol("*".to_string()), 5, 5),
-                t(TokenType::Symbol("\\".to_string()), 6, 6),
-                t(TokenType::StringLiteral("foo.*bar".to_string()), 7, 16),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("\\".to_string())),
+                    0,
+                    0,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol(".".to_string())),
+                    1,
+                    1,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("\\".to_string())),
+                    2,
+                    2,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("+".to_string())),
+                    3,
+                    3,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("\\".to_string())),
+                    4,
+                    4,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("*".to_string())),
+                    5,
+                    5,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("\\".to_string())),
+                    6,
+                    6,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::StringLiteral("foo.*bar".to_string())),
+                    7,
+                    16,
+                ),
             ],
         );
 
@@ -356,10 +518,14 @@ mod tests {
         test_opts(
             r#"\.\+\*\"foo.*bar""#,
             vec![
-                t(TokenType::Any, 0, 1),
-                t(TokenType::Plus, 2, 3),
-                t(TokenType::Star, 4, 5),
-                t(TokenType::Regex("foo.*bar".to_string()), 7, 16),
+                t(TokenType::Special(SpecialTokenType::Any), 0, 1),
+                t(TokenType::Special(SpecialTokenType::Plus), 2, 3),
+                t(TokenType::Special(SpecialTokenType::Star), 4, 5),
+                t(
+                    TokenType::Special(SpecialTokenType::Regex("foo.*bar".to_string())),
+                    7,
+                    16,
+                ),
             ],
             opts,
         );
@@ -373,8 +539,16 @@ mod tests {
         test_opts(
             r#"\"INSERT .*" +"#,
             vec![
-                t(TokenType::Regex("INSERT .*".to_string()), 1, 11),
-                t(TokenType::Symbol("+".to_string()), 13, 13),
+                t(
+                    TokenType::Special(SpecialTokenType::Regex("INSERT .*".to_string())),
+                    1,
+                    11,
+                ),
+                t(
+                    TokenType::Standard(StandardTokenType::Symbol("+".to_string())),
+                    13,
+                    13,
+                ),
             ],
             opts,
         );

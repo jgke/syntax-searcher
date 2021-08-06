@@ -2,13 +2,14 @@ use std::collections::HashSet;
 
 use log::debug;
 
+use crate::compiler::{compile_query, Machine, Matcher};
 use crate::options::Options;
-use crate::parser::{parse_query, Ast, MatcherAst};
-use crate::tokenizer::TokenType;
+use crate::parser::{parse_query, Ast};
+use crate::tokenizer::StandardTokenType;
 
 #[derive(Debug)]
 pub struct Query {
-    matcher_ast: Vec<MatcherAst>,
+    machine: Machine,
 }
 
 #[derive(Debug)]
@@ -20,91 +21,71 @@ impl Query {
     pub fn new(mut options: Options) -> Query {
         options.parse_as_query = true;
         debug!("Query string: {}", options.query);
-        let (tree, _) = parse_query(&mut options.query.as_bytes(), &options);
-        debug!("Query AST: {:#?}", tree);
-        Query { matcher_ast: tree }
+        let (query, _) = parse_query(&mut options.query.as_bytes(), &options);
+        let machine = compile_query(query);
+        debug!("Query AST: {:#?}", machine);
+        Query { machine }
     }
 
-    fn ast_match<'a>(left: &'a [Ast], right: &'_ [MatcherAst]) -> Option<&'a [Ast]> {
-        let mut states = HashSet::new();
-        states.insert((0, 0));
+    fn ast_match<'a>(&self, left: &'a [Ast], initials: &[usize]) -> Option<&'a [Ast]> {
+        let mut current_states = initials
+            .iter()
+            .map(|state| (0, *state))
+            .collect::<HashSet<_>>();
         let mut longest_match: Option<&'a [Ast]> = None;
-        while !states.is_empty() {
+        while !current_states.is_empty() {
             let mut next_states = HashSet::new();
-            for (mut left_pos, state) in states {
-                if right.get(state).is_none() {
-                    longest_match = if left_pos > 0
-                        && (longest_match.is_none()
-                            || longest_match.map(|p| p.len()) < Some(left_pos))
-                    {
-                        Some(&left[0..left_pos.min(left.len())])
-                    } else {
-                        longest_match
-                    };
-                    continue;
-                }
-                match (left.get(left_pos), &right[state]) {
-                    (None, MatcherAst::Any)
-                    | (None, MatcherAst::Token { .. })
-                    | (None, MatcherAst::Delimited { .. })
-                    | (None, MatcherAst::Plus { .. }) => {}
-                    (Some(_), MatcherAst::Any) => {
-                        next_states.insert((left_pos + 1, state + 1));
-                    }
-                    (Some(Ast::Token { token: t1 }), MatcherAst::Regex(re)) => {
-                        if let TokenType::StringLiteral(c) = &t1.ty {
-                            if re.is_match(&c) {
-                                next_states.insert((left_pos + 1, state + 1));
-                            }
-                        }
-                    }
-                    (_, MatcherAst::Regex(_)) => return None,
-                    (Some(Ast::Token { token: t1 }), MatcherAst::Token { token: t2 }) => {
-                        if t1.ty == t2.ty {
-                            next_states.insert((left_pos + 1, state + 1));
-                        }
-                    }
-                    (
-                        Some(Ast::Delimited {
-                            content: content1, ..
-                        }),
-                        MatcherAst::Delimited {
-                            content: content2, ..
-                        },
-                    ) => {
-                        if Query::ast_match(&content1, &content2).is_some() {
-                            next_states.insert((left_pos + 1, state + 1));
-                        }
-                    }
-                    (Some(Ast::Token { .. }), MatcherAst::Delimited { .. }) => {}
-                    (Some(Ast::Delimited { .. }), MatcherAst::Token { .. }) => {}
-                    (_, MatcherAst::Plus { matches }) => {
-                        while let Some(t) = left.get(left_pos) {
-                            if Query::ast_match(&[t.clone()], &[*matches.clone()]).is_some() {
-                                next_states.insert((left_pos + 1, state));
-                                next_states.insert((left_pos + 1, state + 1));
-                                left_pos += 1;
+            for (left_pos, state) in current_states {
+                for (matcher, next_state) in &self.machine.states[&state].transitions {
+                    match (left.get(left_pos), matcher) {
+                        (_, Matcher::Accept) => {
+                            longest_match = if longest_match.is_none()
+                                || longest_match.map(|p| p.len()) < Some(left_pos)
+                            {
+                                Some(&left[0..left_pos.min(left.len())])
                             } else {
-                                break;
+                                longest_match
+                            };
+                            continue;
+                        }
+                        (None, Matcher::Any)
+                        | (None, Matcher::Token(..))
+                        | (None, Matcher::Delimited { .. }) => {}
+                        (Some(_), Matcher::Any) => {
+                            next_states.insert((left_pos + 1, *next_state));
+                        }
+                        (_, Matcher::Epsilon) => {
+                            next_states.insert((left_pos, *next_state));
+                        }
+                        (Some(Ast::Token(t1)), Matcher::Regex(re)) => {
+                            if let StandardTokenType::StringLiteral(c) = &t1.ty {
+                                if re.is_match(&c) {
+                                    next_states.insert((left_pos + 1, *next_state));
+                                }
                             }
                         }
-                    }
-                    (_, MatcherAst::Star { matches }) => {
-                        while let Some(t) = left.get(left_pos) {
-                            if Query::ast_match(&[t.clone()], &[*matches.clone()]).is_some() {
-                                next_states.insert((left_pos + 1, state));
-                                next_states.insert((left_pos + 1, state + 1));
-                                left_pos += 1;
-                            } else {
-                                next_states.insert((left_pos, state + 1));
-                                break;
+                        (_, Matcher::Regex(_)) => {}
+                        (Some(Ast::Token(t1)), Matcher::Token(t2)) => {
+                            if &t1.ty == t2 {
+                                next_states.insert((left_pos + 1, *next_state));
                             }
                         }
-                        next_states.insert((left_pos, state + 1));
+                        (
+                            Some(Ast::Delimited {
+                                content: content1, ..
+                            }),
+                            Matcher::Delimited { start, .. },
+                        ) => {
+                            if self.ast_match(&content1, &[*start]).is_some() {
+                                next_states.insert((left_pos + 1, *next_state));
+                            }
+                        }
+                        (Some(Ast::Token { .. }), Matcher::Delimited { .. }) => {}
+                        (Some(Ast::Delimited { .. }), Matcher::Token { .. }) => {}
                     }
                 }
             }
-            states = next_states;
+            current_states = next_states;
         }
         longest_match
     }
@@ -128,7 +109,7 @@ impl Query {
 
     pub fn matches<'a>(&'a self, input: &'a [Ast]) -> impl Iterator<Item = Match> + 'a {
         Query::potential_matches(input)
-            .flat_map(move |tts| Query::ast_match(tts, &self.matcher_ast))
-            .map(move |tts| Match { t: tts.1.to_vec() })
+            .flat_map(move |tts| self.ast_match(tts, &[self.machine.initial]))
+            .map(move |tts| Match { t: tts.to_vec() })
     }
 }

@@ -55,8 +55,21 @@ mod tests {
     fn run_all<R: Read>(options: Options, file: R) -> Vec<Match> {
         let query = Query::new(options.clone());
         let (file, _iter) = parse_file(file, &options);
-        // TODO: error reporting
         query.matches(&file).collect()
+    }
+
+    fn run_strs(query: &str, file: &str) -> Vec<String> {
+        let options = Options::new(&["syns", query, "-"]);
+        let file = file.as_bytes();
+        let query = Query::new(options.clone());
+        let (file, iter) = parse_file(file, &options);
+        query
+            .matches(&file)
+            .map(|m| {
+                let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
+                iter.get_content_between(span)
+            })
+            .collect()
     }
 
     #[test]
@@ -72,48 +85,66 @@ mod tests {
         assert_eq!(res[0].t.len(), 1);
         assert!(matches!(
             res[0].t[0],
-            Ast::Token {
-                token: Token {
-                    ty: TokenType::Identifier(_),
-                    span: Span { lo: 0, hi: 2 }
-                }
-            }
+            Ast::Token(StandardToken {
+                ty: StandardTokenType::Identifier(_),
+                span: Span { lo: 0, hi: 2 }
+            })
         ));
     }
 
     #[test]
     fn test_longest_match() {
         let res = run_all(Options::new(&["syns", "\\.\\*", "-"]), "a a".as_bytes());
-        dbg!(&res);
         assert_eq!(res.len(), 2);
         assert_eq!(res[0].t.len(), 2);
         assert_eq!(res[1].t.len(), 1);
         assert!(matches!(
             res[0].t[0],
-            Ast::Token {
-                token: Token {
-                    ty: TokenType::Identifier(_),
-                    span: Span { lo: 0, hi: 0 }
-                }
-            }
+            Ast::Token(StandardToken {
+                ty: StandardTokenType::Identifier(_),
+                span: Span { lo: 0, hi: 0 }
+            })
         ));
         assert!(matches!(
             res[0].t[1],
-            Ast::Token {
-                token: Token {
-                    ty: TokenType::Identifier(_),
-                    span: Span { lo: 2, hi: 2 }
-                }
-            }
+            Ast::Token(StandardToken {
+                ty: StandardTokenType::Identifier(_),
+                span: Span { lo: 2, hi: 2 }
+            })
         ));
         assert!(matches!(
             res[1].t[0],
-            Ast::Token {
-                token: Token {
-                    ty: TokenType::Identifier(_),
-                    span: Span { lo: 2, hi: 2 }
-                }
-            }
+            Ast::Token(StandardToken {
+                ty: StandardTokenType::Identifier(_),
+                span: Span { lo: 2, hi: 2 }
+            })
         ));
+    }
+
+    #[test]
+    fn test_groups() {
+        assert_eq!(run_strs("b \\(a a\\) b\\+", "b a a b"), vec!["b a a b"]);
+        assert_eq!(
+            run_strs("b \\(a a\\) b\\+", "b a a a b"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            run_strs("b \\(a a\\)\\+ b\\+", "b a a a b"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            run_strs("b \\(a a\\)\\+ b\\+", "b a a a a b"),
+            vec!["b a a a a b"]
+        );
+    }
+
+    #[test]
+    fn test_delimited() {
+        assert_eq!(run_strs("a () c", "a (b) c"), vec!["a (b) c"]);
+        assert_eq!(run_strs("a (c) c", "a (b) c"), Vec::<String>::new());
+        assert_eq!(
+            run_strs("a (b (c)) c", "a (b (c d) e) c"),
+            vec!["a (b (c d) e) c"]
+        );
     }
 }

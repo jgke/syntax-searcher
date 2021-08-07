@@ -19,6 +19,9 @@ pub fn run<R: Read>(options: &Options, filename: &Path, file: R) {
     debug!("Enumerating matches");
     for m in query.matches(&file) {
         debug!("Match: {:#?}", &m);
+        if m.t.len() == 0 {
+            continue;
+        }
         let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
         let (start, end) = iter.get_line_information(span);
         let line_number = if start == end {

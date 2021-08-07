@@ -1,20 +1,22 @@
 use log::debug;
 use regex::Regex;
+use std::convert::TryInto;
 use std::io::Read;
 use std::iter::Peekable;
 
 use crate::options::Options;
 use crate::psi::{PeekableStringIterator, Span};
-use crate::tokenizer::{tokenize, Token, TokenType};
+use crate::tokenizer::{
+    tokenize, tokenize_query, QueryToken, SpecialTokenType, StandardToken, StandardTokenType,
+    TokenType,
+};
 
 #[derive(Clone, Debug)]
 pub enum Ast {
-    Token {
-        token: Token,
-    },
+    Token(StandardToken),
     Delimited {
-        op: Token,
-        cp: Option<Token>,
+        op: StandardToken,
+        cp: Option<StandardToken>,
         content: Vec<Ast>,
     },
 }
@@ -22,7 +24,7 @@ pub enum Ast {
 impl Ast {
     pub fn span(&self) -> Span {
         match self {
-            Ast::Token { token } => token.span,
+            Ast::Token(token) => token.span,
             Ast::Delimited { op, cp, content } => op.span.merge(
                 &cp.as_ref()
                     .map(|t| t.span)
@@ -35,19 +37,19 @@ impl Ast {
 
 fn parse(
     options: &Options,
-    iter: &mut Peekable<impl Iterator<Item = Token>>,
+    iter: &mut Peekable<impl Iterator<Item = StandardToken>>,
     recur: bool,
 ) -> Vec<Ast> {
     let mut res = Vec::new();
     loop {
-        if let Some(TokenType::Symbol(c)) = iter.peek().map(|t| &t.ty) {
+        if let Some(StandardTokenType::Symbol(c)) = iter.peek().map(|t| &t.ty) {
             if recur && options.is_close_paren(&c) {
                 break;
             }
         }
         if let Some(token) = iter.next() {
             match &token.ty {
-                TokenType::Symbol(c) if options.is_open_paren(&c) => {
+                StandardTokenType::Symbol(c) if options.is_open_paren(&c) => {
                     let content = parse(options, iter, true);
                     let cp = iter.next();
                     res.push(Ast::Delimited {
@@ -56,7 +58,7 @@ fn parse(
                         cp,
                     });
                 }
-                _ => res.push(Ast::Token { token }),
+                _ => res.push(Ast::Token(token)),
             }
         } else {
             break;
@@ -74,88 +76,79 @@ pub fn parse_file<R: Read>(file: R, options: &Options) -> (Vec<Ast>, PeekableStr
 }
 
 #[derive(Clone, Debug)]
-pub enum MatcherAst {
-    Token {
-        token: Token,
-    },
+pub enum ParsedAstMatcher {
+    Token(StandardToken),
     Delimited {
-        op: Token,
-        cp: Option<Token>,
-        content: Vec<MatcherAst>,
+        op: StandardToken,
+        cp: Option<StandardToken>,
+        content: Vec<ParsedAstMatcher>,
     },
     Any,
-    Plus {
-        matches: Box<MatcherAst>,
-    },
-    Star {
-        matches: Box<MatcherAst>,
-    },
-    Or {
-        this: Vec<MatcherAst>,
-        that: Vec<MatcherAst>,
-    },
-    End,
+    Plus(Box<ParsedAstMatcher>),
+    Star(Box<ParsedAstMatcher>),
+    Nested(Vec<ParsedAstMatcher>),
     Regex(Regex),
 }
 
 fn parse_query_ast(
     options: &Options,
-    iter: &mut Peekable<impl Iterator<Item = Token>>,
+    iter: &mut Peekable<impl Iterator<Item = QueryToken>>,
     recur: bool,
-) -> Vec<MatcherAst> {
+) -> Vec<ParsedAstMatcher> {
     let mut res = Vec::new();
     loop {
-        if let Some(TokenType::Symbol(c)) = iter.peek().map(|t| &t.ty) {
+        if let Some(TokenType::Standard(StandardTokenType::Symbol(c))) = iter.peek().map(|t| &t.ty)
+        {
             if recur && options.is_close_paren(&c) {
                 break;
             }
         }
         if let Some(token) = iter.next() {
             match &token.ty {
-                TokenType::Symbol(c) if options.is_open_paren(&c) => {
-                    let op = token;
+                TokenType::Standard(StandardTokenType::Symbol(c)) if options.is_open_paren(&c) => {
+                    let op = StandardToken {
+                        ty: StandardTokenType::Symbol(c.clone()),
+                        span: token.span,
+                    };
                     let content = parse_query_ast(options, iter, true);
-                    let cp = iter.next();
-                    res.push(MatcherAst::Delimited { op, content, cp });
-                }
-                TokenType::Any => {
-                    res.push(MatcherAst::Any);
-                }
-                TokenType::Plus => {
-                    let prev = res.pop().unwrap_or(MatcherAst::Any);
-                    res.push(MatcherAst::Plus {
-                        matches: Box::new(prev),
+                    let cp = iter.next().map(|t| {
+                        t.try_into()
+                            .expect("Expected closing paren but got special token")
                     });
+                    res.push(ParsedAstMatcher::Delimited { op, content, cp });
                 }
-                TokenType::Or => {
-                    let this = res.drain(..).collect();
-                    let that = parse_query_ast(options, iter, true);
-                    res.push(MatcherAst::Or { this, that });
+                TokenType::Standard(ty) => res.push(ParsedAstMatcher::Token(StandardToken {
+                    span: token.span,
+                    ty: ty.clone(),
+                })),
+                TokenType::Special(SpecialTokenType::Any) => {
+                    res.push(ParsedAstMatcher::Any);
                 }
-                TokenType::Star => {
-                    let prev = res.pop().unwrap_or(MatcherAst::Any);
-                    res.push(MatcherAst::Star {
-                        matches: Box::new(prev),
-                    });
+                TokenType::Special(SpecialTokenType::Plus) => {
+                    let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
+                    res.push(ParsedAstMatcher::Plus(Box::new(prev)));
                 }
-                TokenType::End => {
-                    res.push(MatcherAst::End);
+                TokenType::Special(SpecialTokenType::Star) => {
+                    let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
+                    res.push(ParsedAstMatcher::Star(Box::new(prev)));
                 }
-                TokenType::Regex(content) => match Regex::new(&content) {
-                    Ok(r) => {
-                        let matcher = MatcherAst::Regex(r);
-                        res.push(matcher);
+                TokenType::Special(SpecialTokenType::Nested(list)) => {
+                    let list =
+                        parse_query_ast(options, &mut list.clone().into_iter().peekable(), false);
+                    res.push(ParsedAstMatcher::Nested(list));
+                }
+                TokenType::Special(SpecialTokenType::Regex(content)) => {
+                    match Regex::new(&content) {
+                        Ok(r) => {
+                            let matcher = ParsedAstMatcher::Regex(r);
+                            res.push(matcher);
+                        }
+                        Err(e) => {
+                            println!("{}", e);
+                            std::process::exit(1);
+                        }
                     }
-                    Err(e) => {
-                        println!("{}", e);
-                        std::process::exit(1);
-                    }
-                },
-                TokenType::Identifier(_)
-                | TokenType::Integer(_)
-                | TokenType::Float(_)
-                | TokenType::StringLiteral(_)
-                | TokenType::Symbol(_) => res.push(MatcherAst::Token { token }),
+                }
             }
         } else {
             break;
@@ -167,9 +160,9 @@ fn parse_query_ast(
 pub fn parse_query<R: Read>(
     file: R,
     options: &Options,
-) -> (Vec<MatcherAst>, PeekableStringIterator) {
+) -> (Vec<ParsedAstMatcher>, PeekableStringIterator) {
     debug!("Tokenizing query");
-    let (tokens, iter) = tokenize("query", file, options);
+    let (tokens, iter) = tokenize_query(file, options);
     debug!("Tokenized query: {:#?}", tokens);
     debug!("Parsing query");
     (

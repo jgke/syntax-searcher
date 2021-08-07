@@ -3,13 +3,18 @@
 
 //! syntax-searcher -- Generic source code searcher for paren-delimited languages.
 
+#[macro_use]
+mod collection;
+
 mod argparse;
+mod compiler;
 mod options;
 mod parser;
 mod psi;
 mod query;
 mod run;
 mod tokenizer;
+mod wrappers;
 
 use ignore::WalkBuilder;
 use log::info;

@@ -25,7 +25,7 @@
     },
     "javascript": {
         "extensions": ["js", "ts", "jsx", "tsx"],
-        "strings": ["\"", "'"],
+        "strings": ["\"", "'", "`"],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },

@@ -5,11 +5,11 @@
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },
-    "python": {
-        "extensions": ["py"],
+    "c#": {
+        "extensions": ["cs"],
         "strings": ["\"", "'"],
-        "single_comments": ["#"],
-        "multi_comments": []
+        "single_comments": ["//"],
+        "multi_comments": [["/*", "*/"]]
     },
     "clojure": {
         "extensions": ["clj", "cljc", "cljs", "edn"],
@@ -17,10 +17,40 @@
         "single_comments": [";"],
         "multi_comments": []
     },
+    "java": {
+        "extensions": ["java"],
+        "strings": ["\"", "'"],
+        "single_comments": ["//"],
+        "multi_comments": [["/*", "*/"]]
+    },
+    "javascript": {
+        "extensions": ["js", "ts", "jsx", "tsx"],
+        "strings": ["\"", "'"],
+        "single_comments": ["//"],
+        "multi_comments": [["/*", "*/"]]
+    },
     "plain": {
         "extensions": ["txt"],
         "strings": [],
         "single_comments": [],
+        "multi_comments": []
+    },
+    "php": {
+        "extensions": ["php"],
+        "strings": ["\"", "'"],
+        "single_comments": ["//"],
+        "multi_comments": [["/*", "*/"]]
+    },
+    "sql": {
+        "extensions": ["sql"],
+        "strings": ["'"],
+        "single_comments": ["--"],
+        "multi_comments": [["/*", "*/"]]
+    },
+    "python": {
+        "extensions": ["py"],
+        "strings": ["\"", "'"],
+        "single_comments": ["#"],
         "multi_comments": []
     },
     "rust": {
@@ -28,5 +58,11 @@
         "strings": ["\""],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
+    },
+    "visualbasic": {
+        "extensions": ["vb"],
+        "strings": ["\""],
+        "single_comments": ["'"],
+        "multi_comments": []
     }
 }

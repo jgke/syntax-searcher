@@ -91,6 +91,7 @@ can be matched using backslash. The following commands are available:
 | `\+` | Match the previous pattern one or more times. |
 | `\*` | Match the previous pattern zero or more times. |
 | `\"regex"` | Match any string literal with the regex pattern `regex`. |
+| `\(pattern\)` | Group several patterns. Useful for eg. `\(a a\)\+`. |
 
 Testing
 =======
@@ -100,7 +101,6 @@ Testing
 Unimplemented features
 ======================
 
-- Handle stdin ('-') as argument
 - More language-specific defaults
 - More parsing strategies
     - Strings:
@@ -111,15 +111,15 @@ Unimplemented features
         - Clojure/Ruby keyword literal
         - Arbitrary number suffixes (eg. CSS: 15px)
 - More query improvements
-    - Pattern grouping with `\(\)`
-    - Backtracking matching
-        - Currently the query doesn't backtrack, so it doesn't match everything it should
-    - Linear time matching
-        - This should be possible with the linear time regex state machine algorithms
+    - Match group end with `\$`
+    - Or-pattern with `\|`
 - Replacing strings?
 - CLI improvements
     - Fine-tune output
     - JSON output
+- File type filters
+    - In a folder with multiple languages, one probably wants to search only
+      certain types of files
 
 Comparison to other software
 ============================

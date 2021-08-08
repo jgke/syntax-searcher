@@ -11,7 +11,6 @@ use std::iter::Peekable;
 pub struct Options {
     pub paths: Vec<OsString>,
     pub query: String,
-    pub parse_as_query: bool,
     pub string_characters: HashSet<String>,
     pub single_line_comments: HashSet<String>,
     pub multi_line_comments: HashSet<(String, String)>,
@@ -74,7 +73,6 @@ impl Default for Options {
         Options {
             paths: Vec::new(),
             query: "".to_string(),
-            parse_as_query: false,
             string_characters: ["\"", "'", "`"].iter().map(|s| s.to_string()).collect(),
             single_line_comments: ["//"].iter().map(|s| s.to_string()).collect(),
             multi_line_comments: [("/*", "*/")]
@@ -275,7 +273,7 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
 }
 
 impl Options {
-    pub fn new<S: AsRef<OsStr>>(args: &[S]) -> Options {
+    pub fn new<S: AsRef<OsStr>>(extension: &OsStr, args: &[S]) -> Options {
         let (cmds, positionals) = parse_options(args);
         let print_and_quit = cmds
             .iter()
@@ -294,11 +292,7 @@ impl Options {
 
         let files: Vec<OsString> = positionals.into_iter().skip(1).collect();
 
-        let first_file = files.get(0).unwrap_or(&empty_osstring);
-        let file_path = std::path::Path::new(first_file);
-        let extension = file_path.extension();
-
-        let mut opts: Options = cmds
+        let lang = cmds
             .iter()
             .filter_map(|c| {
                 if let OptionCommand::Language(l) = c {
@@ -308,8 +302,10 @@ impl Options {
                 }
             })
             .last()
-            .or_else(|| extension.map(|e| e.to_string_lossy().to_string()))
-            .and_then(|e| EXTENSION_TO_SETTINGS.get(&e))
+            .unwrap_or_else(|| extension.to_string_lossy().to_string());
+
+        let mut opts: Options = EXTENSION_TO_SETTINGS
+            .get(&lang)
             .cloned()
             .unwrap_or_else(Options::default);
 
@@ -364,15 +360,14 @@ mod tests {
 
     #[test]
     fn parse_options() {
-        let options = Options::new(&vec!["syns", "query", "filename"]);
+        let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
         assert_eq!(options.query, "query");
         assert_eq!(options.paths[0], "filename");
-        assert_eq!(options.parse_as_query, false);
     }
 
     #[test]
     fn options_parens() {
-        let options = Options::new(&vec!["syns", "query", "filename"]);
+        let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
         assert!(options.is_open_paren("{"));
         assert!(options.is_open_paren("("));
         assert!(options.is_open_paren("["));

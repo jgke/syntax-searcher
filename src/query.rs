@@ -18,8 +18,7 @@ pub struct Match {
 }
 
 impl Query {
-    pub fn new(mut options: Options) -> Query {
-        options.parse_as_query = true;
+    pub fn new(options: &Options) -> Query {
         debug!("Query string: {}", options.query);
         let (query, _) = parse_query(&mut options.query.as_bytes(), &options);
         let machine = compile_query(query);

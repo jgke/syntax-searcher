@@ -10,10 +10,7 @@ use crate::query::*;
 
 #[cfg(not(tarpaulin_include))]
 /// Parse `file` with `options` and print all matches.
-pub fn run<R: Read>(options: &Options, filename: &Path, file: R) {
-    debug!("Parsing query");
-    let query = Query::new(options.clone());
-    debug!("Query: {:#?}", query);
+pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) {
     debug!("Parsing file");
     let (file, iter) = parse_file(file, &options);
     debug!("Enumerating matches");
@@ -53,15 +50,15 @@ mod tests {
     use crate::tokenizer::*;
 
     fn run_all<R: Read>(options: Options, file: R) -> Vec<Match> {
-        let query = Query::new(options.clone());
+        let query = Query::new(&options);
         let (file, _iter) = parse_file(file, &options);
         query.matches(&file).collect()
     }
 
     fn run_strs(query: &str, file: &str) -> Vec<String> {
-        let options = Options::new(&["syns", query, "-"]);
+        let options = Options::new("js".as_ref(), &["syns", query, "-"]);
         let file = file.as_bytes();
-        let query = Query::new(options.clone());
+        let query = Query::new(&options);
         let (file, iter) = parse_file(file, &options);
         query
             .matches(&file)
@@ -74,13 +71,19 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let res = run_all(Options::new(&["syns", "bar", "-"]), "foo".as_bytes());
+        let res = run_all(
+            Options::new("js".as_ref(), &["syns", "bar", "-"]),
+            "foo".as_bytes(),
+        );
         assert_eq!(res.len(), 0);
     }
 
     #[test]
     fn test_one_match() {
-        let res = run_all(Options::new(&["syns", "foo", "-"]), "foo".as_bytes());
+        let res = run_all(
+            Options::new("js".as_ref(), &["syns", "foo", "-"]),
+            "foo".as_bytes(),
+        );
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].t.len(), 1);
         assert!(matches!(
@@ -94,7 +97,10 @@ mod tests {
 
     #[test]
     fn test_longest_match() {
-        let res = run_all(Options::new(&["syns", "\\.\\*", "-"]), "a a".as_bytes());
+        let res = run_all(
+            Options::new("js".as_ref(), &["syns", "\\.\\*", "-"]),
+            "a a".as_bytes(),
+        );
         assert_eq!(res.len(), 2);
         assert_eq!(res[0].t.len(), 2);
         assert_eq!(res[1].t.len(), 1);

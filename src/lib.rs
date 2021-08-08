@@ -15,4 +15,4 @@ mod run;
 mod tokenizer;
 mod wrappers;
 
-pub use run::run;
+pub use run::run_cached;

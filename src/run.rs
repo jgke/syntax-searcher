@@ -153,4 +153,9 @@ mod tests {
             vec!["a (b (c d) e) c"]
         );
     }
+
+    #[test]
+    fn test_mismatched_parens_in_source() {
+        assert_eq!(run_strs("a ()", "a ([b)]"), vec!["a ([b)]"]);
+    }
 }

@@ -189,7 +189,7 @@ impl PeekableStringIterator {
     /// # use syns::psi::PeekableStringIterator;
     /// let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
     /// let (s1, _) = iter.collect_while(|x| match x {
-    ///     'a'...'z' => true,
+    ///     'a'..='z' => true,
     ///     _ => false
     /// });
     /// assert_eq!(s1, "foo");
@@ -208,7 +208,7 @@ impl PeekableStringIterator {
     /// # use syns::psi::PeekableStringIterator;
     /// let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
     /// let (s1, _) = iter.collect_while_map(|x, _| match x {
-    ///     'a'...'z' => Some(x.to_ascii_uppercase()),
+    ///     'a'..='z' => Some(x.to_ascii_uppercase()),
     ///     _ => None
     /// });
     /// assert_eq!(s1, "FOO");

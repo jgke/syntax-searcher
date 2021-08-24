@@ -20,7 +20,7 @@ pub struct Match {
 impl Query {
     pub fn new(options: &Options) -> Query {
         debug!("Query string: {}", options.query);
-        let (query, _) = parse_query(&mut options.query.as_bytes(), &options);
+        let (query, _) = parse_query(&mut options.query.as_bytes(), options);
         let machine = compile_query(query);
         debug!("Query AST: {:#?}", machine);
         Query { machine }
@@ -58,7 +58,7 @@ impl Query {
                         }
                         (Some(Ast::Token(t1)), Matcher::Regex(re)) => {
                             if let StandardTokenType::StringLiteral(c) = &t1.ty {
-                                if re.is_match(&c) {
+                                if re.is_match(c) {
                                     next_states.insert((left_pos + 1, *next_state));
                                 }
                             }
@@ -75,7 +75,7 @@ impl Query {
                             }),
                             Matcher::Delimited { start, .. },
                         ) => {
-                            if self.ast_match(&content1, &[*start]).is_some() {
+                            if self.ast_match(content1, &[*start]).is_some() {
                                 next_states.insert((left_pos + 1, *next_state));
                             }
                         }

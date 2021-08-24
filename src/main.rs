@@ -56,6 +56,7 @@ fn main() -> io::Result<()> {
     for path in options.paths.iter().skip(1) {
         walker.add(path);
     }
+    let mut retval = 0;
     for f in walker.build() {
         if let Err(e) = {
             match f {
@@ -81,8 +82,10 @@ fn main() -> io::Result<()> {
                 Err(e) => Err(e.into()),
             }
         } {
-            println!("Err: {}", e);
+            eprintln!("Err: {}", e);
+            retval = 1;
         }
     }
-    Ok(())
+
+    std::process::exit(retval);
 }

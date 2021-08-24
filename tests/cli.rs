@@ -51,3 +51,18 @@ fn test_no_match_single_file() {
         .code(1)
         .stdout(predicate::str::is_match("^$").unwrap());
 }
+
+#[test]
+fn test_multiline_match_single_file() {
+    let mut cmd = run("test-files/main.c", "main() {}");
+
+    cmd.assert()
+        .code(0)
+        .stdout(predicate::str::is_match(
+"^\\[.*test-files/main.c:3-6]
+int main\\(\\) \\{
+    printf\\(\"Hello %s!\\\\n\", \"world\"\\);
+    return 0;
+}
+$").unwrap());
+}

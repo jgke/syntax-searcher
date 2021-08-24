@@ -10,15 +10,17 @@ use crate::query::*;
 
 #[cfg(not(tarpaulin_include))]
 /// Parse `file` with `options` and print all matches.
-pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) {
+pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) -> bool {
     debug!("Parsing file");
-    let (file, iter) = parse_file(file, &options);
+    let (file, iter) = parse_file(file, options);
     debug!("Enumerating matches");
+    let mut found_match = false;
     for m in query.matches(&file) {
         debug!("Match: {:#?}", &m);
         if m.t.is_empty() {
             continue;
         }
+        found_match = true;
         let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
         let (start, end) = iter.get_line_information(span);
         let line_number = if start == end {
@@ -41,6 +43,7 @@ pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, fi
         }
     }
     debug!("Done");
+    found_match
 }
 
 #[cfg(test)]

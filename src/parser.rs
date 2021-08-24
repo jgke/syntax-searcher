@@ -43,13 +43,13 @@ fn parse(
     let mut res = Vec::new();
     loop {
         if let Some(StandardTokenType::Symbol(c)) = iter.peek().map(|t| &t.ty) {
-            if recur && options.is_close_paren(&c) {
+            if recur && options.is_close_paren(c) {
                 break;
             }
         }
         if let Some(token) = iter.next() {
             match &token.ty {
-                StandardTokenType::Symbol(c) if options.is_open_paren(&c) => {
+                StandardTokenType::Symbol(c) if options.is_open_paren(c) => {
                     let content = parse(options, iter, true);
                     let cp = iter.next();
                     res.push(Ast::Delimited {
@@ -99,13 +99,13 @@ fn parse_query_ast(
     loop {
         if let Some(TokenType::Standard(StandardTokenType::Symbol(c))) = iter.peek().map(|t| &t.ty)
         {
-            if recur && options.is_close_paren(&c) {
+            if recur && options.is_close_paren(c) {
                 break;
             }
         }
         if let Some(token) = iter.next() {
             match &token.ty {
-                TokenType::Standard(StandardTokenType::Symbol(c)) if options.is_open_paren(&c) => {
+                TokenType::Standard(StandardTokenType::Symbol(c)) if options.is_open_paren(c) => {
                     let op = StandardToken {
                         ty: StandardTokenType::Symbol(c.clone()),
                         span: token.span,
@@ -138,7 +138,7 @@ fn parse_query_ast(
                     res.push(ParsedAstMatcher::Nested(list));
                 }
                 TokenType::Special(SpecialTokenType::Regex(content)) => {
-                    match Regex::new(&content) {
+                    match Regex::new(content) {
                         Ok(r) => {
                             let matcher = ParsedAstMatcher::Regex(r);
                             res.push(matcher);

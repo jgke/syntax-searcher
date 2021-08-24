@@ -30,14 +30,15 @@ fn run_file(
     query: &Query,
     options: &Options,
     file: ignore::DirEntry,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     let path = file.path();
     let attr = fs::metadata(&path)?;
     if !attr.is_dir() {
         let fp = File::open(&path)?;
-        run::run_cached(query, options, &path, fp);
+        Ok(run::run_cached(query, options, path, fp))
+    } else {
+        Ok(false)
     }
-    Ok(())
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -56,9 +57,9 @@ fn main() -> io::Result<()> {
     for path in options.paths.iter().skip(1) {
         walker.add(path);
     }
-    let mut retval = 0;
+    let mut retval = 1;
     for f in walker.build() {
-        if let Err(e) = {
+        match {
             match f {
                 Ok(f) => {
                     let file_path = std::path::Path::new(f.path());
@@ -72,9 +73,7 @@ fn main() -> io::Result<()> {
                         opts
                     });
                     let query = query_cache.entry(ext).or_insert_with(|| {
-                        // This options accounts for proper file extensions
-                        let opts = Query::new(options);
-                        opts
+                        Query::new(options)
                     });
 
                     run_file(query, options, f)
@@ -82,8 +81,15 @@ fn main() -> io::Result<()> {
                 Err(e) => Err(e.into()),
             }
         } {
-            eprintln!("Err: {}", e);
-            retval = 1;
+            Ok(did_match) => {
+                if retval == 1 && did_match {
+                    retval = 0;
+                }
+            }
+            Err(e) => {
+                eprintln!("Err: {}", e);
+                retval = 2;
+            }
         }
     }
 

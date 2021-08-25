@@ -392,8 +392,46 @@ mod tests {
     }
 
     #[test]
-    fn span_to_strings() {
+    fn get_content_between() {
         let iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
         assert_eq!(iter.get_content_between(Span { lo: 4, hi: 6 }), "bar");
+        assert_eq!(iter.get_content_between(Span { lo: 4, hi: 4 }), "b");
+    }
+
+    #[test]
+    fn get_lines() {
+        let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo\nbar\nbaz".to_string());
+        let (s1, sp1) = iter.collect_while(|x| match x {
+            'a'..='z' => true,
+            _ => false,
+        });
+        assert_eq!(s1, "foo");
+        assert_eq!(iter.next(), Some('\n'));
+        let (s2, sp2) = iter.collect_while(|x| match x {
+            'a'..='z' => true,
+            _ => false,
+        });
+        assert_eq!(s2, "bar");
+        assert_eq!(iter.next(), Some('\n'));
+        let (s3, sp3) = iter.collect_while(|x| match x {
+            'a'..='z' => true,
+            _ => false,
+        });
+        assert_eq!(s3, "baz");
+        assert_eq!(iter.next(), None);
+
+        assert_eq!(iter.get_line_information(sp1), (1, 1));
+        assert_eq!(iter.get_line_information(sp2), (2, 2));
+        assert_eq!(iter.get_line_information(sp3), (3, 3));
+        assert_eq!(iter.get_line_information(sp1.merge(&sp2)), (1, 2));
+        assert_eq!(iter.get_line_information(sp1.merge(&sp3)), (1, 3));
+        assert_eq!(iter.get_line_information(sp2.merge(&sp3)), (2, 3));
+
+        assert_eq!(iter.get_lines_including(sp1), vec!["foo"]);
+        assert_eq!(iter.get_lines_including(sp2), vec!["bar"]);
+        assert_eq!(iter.get_lines_including(sp3), vec!["baz"]);
+        assert_eq!(iter.get_lines_including(sp1.merge(&sp2)), vec!["foo", "bar"]);
+        assert_eq!(iter.get_lines_including(sp1.merge(&sp3)), vec!["foo", "bar", "baz"]);
+        assert_eq!(iter.get_lines_including(sp2.merge(&sp3)), vec!["bar", "baz"]);
     }
 }

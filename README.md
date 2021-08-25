@@ -101,6 +101,7 @@ Testing
 Unimplemented features
 ======================
 
+- Proper newline handling
 - More language-specific defaults
 - More parsing strategies
     - Strings:

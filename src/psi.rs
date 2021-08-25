@@ -2,7 +2,6 @@
 
 use ouroboros::self_referencing;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::str::CharIndices;
 
 /// Enable peeking for `CharIndices`.
@@ -102,14 +101,10 @@ pub struct PeekableStringIterator {
 
     /// Current line starting byte.
     current_line_starting_byte: usize,
-    /// File being iterated over.
-    current_line: String,
-    /// Map from starting byte to lines in the file.
-    lines: BTreeMap<usize, String>,
     /// Current line number, starting from 1.
     current_line_number: usize,
-    /// Map from starting byte to line number in the file.
-    line_numbers: HashMap<usize, usize>,
+    /// Map from starting byte to (exclusive ending byte, line number) in the file.
+    line_numbers: BTreeMap<usize, (usize, usize)>,
 }
 
 impl Iterator for PeekableStringIterator {
@@ -119,25 +114,17 @@ impl Iterator for PeekableStringIterator {
     fn next(&mut self) -> Option<char> {
         if let Some((s, c)) = self.iter.next() {
             if c == '\n' {
-                let mut line = String::new();
-                std::mem::swap(&mut line, &mut self.current_line);
-                self.lines.insert(self.current_line_starting_byte, line);
                 self.line_numbers
-                    .insert(self.current_line_starting_byte, self.current_line_number);
+                    .insert(self.current_line_starting_byte, (self.current_span.hi+1, self.current_line_number));
                 self.current_line_number += 1;
                 self.current_line_starting_byte = s + 1;
-            } else {
-                self.current_line.push(c);
             }
             self.current_span.hi = s;
             Some(c)
         } else {
             if self.current_line_starting_byte != 0 {
-                let mut line = String::new();
-                std::mem::swap(&mut line, &mut self.current_line);
-                self.lines.insert(self.current_line_starting_byte, line);
                 self.line_numbers
-                    .insert(self.current_line_starting_byte, self.current_line_number);
+                    .insert(self.current_line_starting_byte, (self.current_span.hi+1, self.current_line_number));
                 self.current_line_number += 1;
                 self.current_line_starting_byte = 0
             }
@@ -162,10 +149,8 @@ impl PeekableStringIterator {
             current_span,
 
             current_line_starting_byte: 0,
-            current_line: String::new(),
-            lines: BTreeMap::new(),
             current_line_number: 1,
-            line_numbers: HashMap::new(),
+            line_numbers: BTreeMap::new(),
         }
     }
 
@@ -269,29 +254,43 @@ impl PeekableStringIterator {
         .to_string()
     }
 
+    fn get_start_index(&self, offset: usize) -> usize {
+        self
+            .line_numbers
+            .range(0..=offset)
+            .map(|(start, _)| *start)
+            .last()
+            .unwrap_or(0)
+    }
+
+    fn get_end_index(&self, offset: usize) -> usize {
+        self
+            .line_numbers
+            .range(0..=offset)
+            .map(|(_, (end, _))| *end)
+            .last()
+            .unwrap_or(usize::MAX)
+    }
+
     fn get_span_indices(&self, span: Span) -> (usize, usize) {
-        let start_index = self
-            .lines
-            .range(0..=span.lo)
-            .map(|(k, _v)| *k)
-            .last()
-            .unwrap_or(0);
-        let end_index = self
-            .lines
-            .range(0..=span.hi)
-            .map(|(k, _v)| *k)
-            .last()
-            .unwrap_or(usize::MAX);
-        (start_index, end_index)
+        let start = self.get_start_index(span.lo);
+        let end = self.get_end_index(span.hi);
+        (start, end)
+    }
+
+    fn get_line_starts(&self, span: Span) -> (usize, usize) {
+        let start = self.get_start_index(span.lo);
+        let end = self.get_start_index(span.hi);
+        (start, end)
     }
 
     /// Get the line numbers for the match. Returns (first_line, last_line).
     pub fn get_line_information(&self, span: Span) -> (usize, usize) {
-        let (start_index, end_index) = self.get_span_indices(span);
+        let (start_index, end_index) = self.get_line_starts(span);
 
         (
-            self.line_numbers[&start_index],
-            self.line_numbers[&end_index],
+            self.line_numbers[&start_index].1,
+            self.line_numbers[&end_index].1,
         )
     }
 
@@ -299,12 +298,14 @@ impl PeekableStringIterator {
     pub fn get_lines_including(&self, span: Span) -> Vec<String> {
         let (start_index, end_index) = self.get_span_indices(span);
 
-        self.lines
-            .range(start_index..=end_index)
-            .map(|(_k, v)| v.clone())
+        self.iter.content().chars().skip(start_index).take(end_index - start_index)
+            .collect::<String>()
+            .split("\n")
+            .map(|s| s.to_string())
             .collect()
     }
 }
+
 
 #[cfg(test)]
 mod tests {

@@ -1,3 +1,5 @@
+//! Options parsing and handling.
+
 use crate::argparse::{parse_args, Arg, ArgRef};
 use lazy_static::lazy_static;
 use log::warn;
@@ -7,15 +9,24 @@ use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
 
+/// Parsed options.
 #[derive(Clone, Debug)]
 pub struct Options {
+    /// File search paths.
     pub paths: Vec<OsString>,
+    /// Query string.
     pub query: String,
+
+    /// Set of strings which start or end a string literal (eg. "'").
     pub string_characters: HashSet<String>,
+    /// Set of strings which start or end a single-line comment (eg. "//").
     pub single_line_comments: HashSet<String>,
+    /// Set of strings which start and end a multi-line comment (eg. ("/*", "*/")).
     pub multi_line_comments: HashSet<(String, String)>,
+    /// Parse '..' as a range.
     pub ranges: bool,
 
+    /// Print only matching parts of the source code.
     pub only_matching: bool,
 }
 
@@ -273,6 +284,15 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
 }
 
 impl Options {
+    /// Parse options from `args`, using defaults for file type `extension`.
+    ///
+    /// ```
+    /// use syns::options::Options;
+    /// let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
+    /// assert_eq!(options.query, "query");
+    /// assert_eq!(options.paths, vec!["filename"]);
+    /// assert_eq!(options.only_matching, false);
+    /// ```
     pub fn new<S: AsRef<OsStr>>(extension: &OsStr, args: &[S]) -> Options {
         let (cmds, positionals) = parse_options(args);
         let print_and_quit = cmds
@@ -345,10 +365,24 @@ impl Options {
         opts
     }
 
+    /// Is `c` an open paren for the current file type?
+    /// ```
+    /// use syns::options::Options;
+    /// let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
+    /// assert!(options.is_open_paren("{"));
+    /// assert!(!options.is_open_paren("}"));
+    /// ```
     pub fn is_open_paren(&self, c: &str) -> bool {
         c == "(" || c == "[" || c == "{"
     }
 
+    /// Is `c` a close paren for the current file type?
+    /// ```
+    /// use syns::options::Options;
+    /// let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
+    /// assert!(!options.is_close_paren("{"));
+    /// assert!(options.is_close_paren("}"));
+    /// ```
     pub fn is_close_paren(&self, c: &str) -> bool {
         c == ")" || c == "]" || c == "}"
     }

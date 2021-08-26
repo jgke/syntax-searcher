@@ -1,3 +1,5 @@
+//! Parsers for a stream of tokens.
+
 use log::debug;
 use regex::Regex;
 use std::convert::TryInto;
@@ -11,17 +13,24 @@ use crate::tokenizer::{
     QueryTokenType,
 };
 
+/// Abstract syntax tree for source code.
 #[derive(Clone, Debug)]
 pub enum Ast {
+    /// A single token.
     Token(StandardToken),
+    /// Paren-delimited block of code.
     Delimited {
+        /// Opening paren of the block.
         op: StandardToken,
+        /// Closing paren of the block, or None in case of EOF.
         cp: Option<StandardToken>,
+        /// Content of the block.
         content: Vec<Ast>,
     },
 }
 
 impl Ast {
+    /// Get the span of this AST node.
     pub fn span(&self) -> Span {
         match self {
             Ast::Token(token) => token.span,
@@ -67,6 +76,7 @@ fn parse(
     res
 }
 
+/// Parse a source file into a list of ASTs.
 pub fn parse_file<R: Read>(file: R, options: &Options) -> (Vec<Ast>, PeekableStringIterator) {
     let (tokens, iter) = tokenize("filename", file, options);
     (
@@ -75,18 +85,29 @@ pub fn parse_file<R: Read>(file: R, options: &Options) -> (Vec<Ast>, PeekableStr
     )
 }
 
+/// Abstract syntax tree for query strings.
 #[derive(Clone, Debug)]
 pub enum ParsedAstMatcher {
+    /// Single token.
     Token(StandardToken),
+    /// Paren-delimited block.
     Delimited {
+        /// Opening paren of the block.
         op: StandardToken,
+        /// Closing paren of the block, or None in case of EOF.
         cp: Option<StandardToken>,
+        /// Content of the block.
         content: Vec<ParsedAstMatcher>,
     },
+    /// Match a single any token
     Any,
+    /// Match `ParsedAstMatcher` one or more times
     Plus(Box<ParsedAstMatcher>),
+    /// Match `ParsedAstMatcher` zero or more times
     Star(Box<ParsedAstMatcher>),
+    /// Grouped `ParsedAstMatcher`s
     Nested(Vec<ParsedAstMatcher>),
+    /// Match string literal by regex
     Regex(Regex),
 }
 
@@ -157,6 +178,7 @@ fn parse_query_ast(
     res
 }
 
+/// Parse a query into a list of query ASTs.
 pub fn parse_query<R: Read>(
     file: R,
     options: &Options,

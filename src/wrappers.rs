@@ -1,6 +1,9 @@
+//! Various wrapper types
+
 use regex::Regex;
 use std::hash::{Hash, Hasher};
 
+/// `Regex` wrapper with `Hash` + `PartialEq` based on `Regex::as_str`.
 #[derive(Clone, Debug)]
 pub struct RegexEq(pub Regex);
 
@@ -25,6 +28,7 @@ impl std::ops::Deref for RegexEq {
     }
 }
 
+/// `f64` wrapper with `Hash` + `PartialEq` based on `to_bits`.
 #[derive(Clone, Debug)]
 pub struct Float(pub f64);
 

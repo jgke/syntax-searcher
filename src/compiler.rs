@@ -1,3 +1,5 @@
+//! Non-deterministic finite automaton compiler.
+
 use lazy_static::lazy_static;
 use log::debug;
 use std::collections::HashMap;
@@ -7,29 +9,45 @@ use crate::parser::ParsedAstMatcher;
 use crate::tokenizer::StandardTokenType;
 use crate::wrappers::RegexEq;
 
+/// Token matchers.
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Matcher {
+    /// Match a simple token.
     Token(StandardTokenType),
+    /// Match a paren-delimited block.
     Delimited {
+        /// Opening paren of the block.
         op: StandardTokenType,
+        /// Closing paren of the block, or None in case of EOF.
         cp: Option<StandardTokenType>,
+        /// Starting state index of the nested NFA.
         start: usize,
     },
+    /// Match any token.
     Any,
+    /// Match a string literal with a regex.
     Regex(RegexEq),
+    /// Match anything without consuming the next token.
     Epsilon,
+    /// Accept the input.
     Accept,
 }
 
+/// A single state in the state machine.
 #[derive(Clone, Debug)]
 pub struct State {
+    /// ID of this state.
     pub id: usize,
+    /// Transitions to next states.
     pub transitions: Vec<(Matcher, usize)>,
 }
 
+/// Non-deterministic finite automaton. 
 #[derive(Debug)]
 pub struct Machine {
+    /// Initial state of this machine.
     pub initial: usize,
+    /// All of the states inside this machine.
     pub states: HashMap<usize, State>,
 }
 
@@ -167,6 +185,7 @@ impl Machine {
     }
 }
 
+/// Compile a parsed query into a NFA.
 pub fn compile_query(query: Vec<ParsedAstMatcher>) -> Machine {
     debug!("Compiling query");
     let mut machine = Machine::new();

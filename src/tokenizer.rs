@@ -1,3 +1,5 @@
+//! Tokenizer for source files.
+
 use crate::options::Options;
 use crate::psi::{PeekableStringIterator, Span};
 use crate::wrappers::Float;
@@ -5,39 +7,61 @@ use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::str::FromStr;
 
+/// Special tokens for queries.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SpecialTokenType {
+    /// Match any token.
     Any,
+    /// Match previous matcher zero or more times.
     Star,
+    /// Match previous matcher one or more times.
     Plus,
+    /// Match string literals with regex.
     Regex(String),
+    /// Grouped matchers.
     Nested(Vec<QueryToken>),
 }
 
+/// Stardard token types for source files.
+// TODO: merge identifier, integer, float and symbol
 #[derive(Clone, Debug, PartialEq, Hash)]
 pub enum StandardTokenType {
+    /// Identifier, eg. foo
     Identifier(String),
+    /// Integer, eg. 123
     Integer(i128),
+    /// Floating point number, eg. 123.0
     Float(Float),
+    /// String literal, eg. "Hello"
     StringLiteral(String),
+    /// Symbol, eg. +
     Symbol(String),
 }
 
+/// Query token type.
 #[derive(Clone, Debug, PartialEq)]
-pub enum TokenType {
+pub enum QueryTokenType {
+    /// Non-special token type.
     Standard(StandardTokenType),
+    /// Special token type.
     Special(SpecialTokenType),
 }
 
+/// Source code token.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StandardToken {
+    /// Type of the token.
     pub ty: StandardTokenType,
+    /// Location of the token.
     pub span: Span,
 }
 
+/// Query string token.
 #[derive(Clone, Debug, PartialEq)]
 pub struct QueryToken {
-    pub ty: TokenType,
+    /// Type of the token.
+    pub ty: QueryTokenType,
+    /// Location of the token.
     pub span: Span,
 }
 
@@ -47,17 +71,18 @@ impl TryFrom<QueryToken> for StandardToken {
     fn try_from(f: QueryToken) -> Result<Self, Self::Error> {
         match f {
             QueryToken {
-                ty: TokenType::Standard(ty),
+                ty: QueryTokenType::Standard(ty),
                 span,
             } => Ok(StandardToken { ty, span }),
             QueryToken {
-                ty: TokenType::Special(_),
+                ty: QueryTokenType::Special(_),
                 ..
             } => Err(()),
         }
     }
 }
 
+/// Tokenize a source code file.
 pub fn tokenize<R: Read>(
     filename: &str,
     mut content: R,
@@ -76,6 +101,7 @@ pub fn tokenize<R: Read>(
     (res, iter)
 }
 
+/// Tokenize a query string.
 pub fn tokenize_query<R: Read>(
     mut content: R,
     options: &Options,
@@ -90,6 +116,7 @@ pub fn tokenize_query<R: Read>(
     (res, iter)
 }
 
+/// Generate tokens from a PeekableStringIterator.
 pub fn tokenize_recur(
     iter: &mut PeekableStringIterator,
     options: &Options,
@@ -203,7 +230,7 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
             })
             .unwrap_or(0);
         QueryToken {
-            ty: TokenType::Standard(StandardTokenType::Integer(num)),
+            ty: QueryTokenType::Standard(StandardTokenType::Integer(num)),
             span,
         }
     } else {
@@ -229,7 +256,7 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
             })
             .unwrap_or(0.0);
         QueryToken {
-            ty: TokenType::Standard(StandardTokenType::Float(num.into())),
+            ty: QueryTokenType::Standard(StandardTokenType::Float(num.into())),
             span,
         }
     }
@@ -261,7 +288,7 @@ fn read_string_content(iter: &mut PeekableStringIterator) -> String {
 fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
     let content = read_string_content(iter);
     QueryToken {
-        ty: TokenType::Standard(StandardTokenType::StringLiteral(content)),
+        ty: QueryTokenType::Standard(StandardTokenType::StringLiteral(content)),
         span: iter.current_span(),
     }
 }
@@ -274,7 +301,7 @@ fn read_identifier(iter: &mut PeekableStringIterator) -> QueryToken {
     });
 
     QueryToken {
-        ty: TokenType::Standard(StandardTokenType::Identifier(content)),
+        ty: QueryTokenType::Standard(StandardTokenType::Identifier(content)),
         span,
     }
 }
@@ -282,7 +309,7 @@ fn read_identifier(iter: &mut PeekableStringIterator) -> QueryToken {
 fn read_other(iter: &mut PeekableStringIterator) -> QueryToken {
     match iter.next_new_span() {
         Some(c) => QueryToken {
-            ty: TokenType::Standard(StandardTokenType::Symbol(c.to_string())),
+            ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
             span: iter.current_span(),
         },
         None => panic!("Unexpected end of file"),
@@ -291,11 +318,11 @@ fn read_other(iter: &mut PeekableStringIterator) -> QueryToken {
 
 fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
     let t = match iter.peek().expect("Unexpected end of query string") {
-        '.' => TokenType::Special(SpecialTokenType::Any),
-        '*' => TokenType::Special(SpecialTokenType::Star),
-        '+' => TokenType::Special(SpecialTokenType::Plus),
+        '.' => QueryTokenType::Special(SpecialTokenType::Any),
+        '*' => QueryTokenType::Special(SpecialTokenType::Star),
+        '+' => QueryTokenType::Special(SpecialTokenType::Plus),
         '"' => {
-            let ty = TokenType::Special(SpecialTokenType::Regex(read_string_content(iter)));
+            let ty = QueryTokenType::Special(SpecialTokenType::Regex(read_string_content(iter)));
             return QueryToken {
                 ty,
                 span: iter.current_span(),
@@ -303,7 +330,7 @@ fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> Q
         }
         '(' => {
             assert_eq!(iter.next(), Some('('));
-            let tts = TokenType::Special(SpecialTokenType::Nested(tokenize_recur(
+            let tts = QueryTokenType::Special(SpecialTokenType::Nested(tokenize_recur(
                 iter, options, true, true,
             )));
             assert_eq!(iter.next(), Some(')'));
@@ -331,7 +358,7 @@ mod tests {
             span: Span { lo, hi },
         }
     }
-    fn q(ty: TokenType, lo: usize, hi: usize) -> QueryToken {
+    fn q(ty: QueryTokenType, lo: usize, hi: usize) -> QueryToken {
         QueryToken {
             ty,
             span: Span { lo, hi },
@@ -467,11 +494,11 @@ mod tests {
         test_query(
             r#"\.\+\*\"foo.*bar""#,
             vec![
-                q(TokenType::Special(SpecialTokenType::Any), 0, 1),
-                q(TokenType::Special(SpecialTokenType::Plus), 2, 3),
-                q(TokenType::Special(SpecialTokenType::Star), 4, 5),
+                q(QueryTokenType::Special(SpecialTokenType::Any), 0, 1),
+                q(QueryTokenType::Special(SpecialTokenType::Plus), 2, 3),
+                q(QueryTokenType::Special(SpecialTokenType::Star), 4, 5),
                 q(
-                    TokenType::Special(SpecialTokenType::Regex("foo.*bar".to_string())),
+                    QueryTokenType::Special(SpecialTokenType::Regex("foo.*bar".to_string())),
                     7,
                     16,
                 ),
@@ -488,12 +515,12 @@ mod tests {
             r#"\"INSERT .*" +"#,
             vec![
                 q(
-                    TokenType::Special(SpecialTokenType::Regex("INSERT .*".to_string())),
+                    QueryTokenType::Special(SpecialTokenType::Regex("INSERT .*".to_string())),
                     1,
                     11,
                 ),
                 q(
-                    TokenType::Standard(StandardTokenType::Symbol("+".to_string())),
+                    QueryTokenType::Standard(StandardTokenType::Symbol("+".to_string())),
                     13,
                     13,
                 ),

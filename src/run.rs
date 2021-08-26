@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+//! Main entry point for the program.
 
 use log::debug;
 use std::io::Read;

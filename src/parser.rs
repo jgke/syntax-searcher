@@ -8,7 +8,7 @@ use crate::options::Options;
 use crate::psi::{PeekableStringIterator, Span};
 use crate::tokenizer::{
     tokenize, tokenize_query, QueryToken, SpecialTokenType, StandardToken, StandardTokenType,
-    TokenType,
+    QueryTokenType,
 };
 
 #[derive(Clone, Debug)]
@@ -97,7 +97,7 @@ fn parse_query_ast(
 ) -> Vec<ParsedAstMatcher> {
     let mut res = Vec::new();
     loop {
-        if let Some(TokenType::Standard(StandardTokenType::Symbol(c))) = iter.peek().map(|t| &t.ty)
+        if let Some(QueryTokenType::Standard(StandardTokenType::Symbol(c))) = iter.peek().map(|t| &t.ty)
         {
             if recur && options.is_close_paren(c) {
                 break;
@@ -105,7 +105,7 @@ fn parse_query_ast(
         }
         if let Some(token) = iter.next() {
             match &token.ty {
-                TokenType::Standard(StandardTokenType::Symbol(c)) if options.is_open_paren(c) => {
+                QueryTokenType::Standard(StandardTokenType::Symbol(c)) if options.is_open_paren(c) => {
                     let op = StandardToken {
                         ty: StandardTokenType::Symbol(c.clone()),
                         span: token.span,
@@ -117,27 +117,27 @@ fn parse_query_ast(
                     });
                     res.push(ParsedAstMatcher::Delimited { op, content, cp });
                 }
-                TokenType::Standard(ty) => res.push(ParsedAstMatcher::Token(StandardToken {
+                QueryTokenType::Standard(ty) => res.push(ParsedAstMatcher::Token(StandardToken {
                     span: token.span,
                     ty: ty.clone(),
                 })),
-                TokenType::Special(SpecialTokenType::Any) => {
+                QueryTokenType::Special(SpecialTokenType::Any) => {
                     res.push(ParsedAstMatcher::Any);
                 }
-                TokenType::Special(SpecialTokenType::Plus) => {
+                QueryTokenType::Special(SpecialTokenType::Plus) => {
                     let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
                     res.push(ParsedAstMatcher::Plus(Box::new(prev)));
                 }
-                TokenType::Special(SpecialTokenType::Star) => {
+                QueryTokenType::Special(SpecialTokenType::Star) => {
                     let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
                     res.push(ParsedAstMatcher::Star(Box::new(prev)));
                 }
-                TokenType::Special(SpecialTokenType::Nested(list)) => {
+                QueryTokenType::Special(SpecialTokenType::Nested(list)) => {
                     let list =
                         parse_query_ast(options, &mut list.clone().into_iter().peekable(), false);
                     res.push(ParsedAstMatcher::Nested(list));
                 }
-                TokenType::Special(SpecialTokenType::Regex(content)) => {
+                QueryTokenType::Special(SpecialTokenType::Regex(content)) => {
                     match Regex::new(content) {
                         Ok(r) => {
                             let matcher = ParsedAstMatcher::Regex(r);

@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*; // Add methods on commands
 use predicates::prelude::*; // Used for writing assertions
-use std::process::Command; // Run programs
 use std::path::PathBuf;
+use std::process::Command; // Run programs
 
 fn run(path: &str, query: &str) -> Command {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -25,10 +25,13 @@ fn file_doesnt_exist() {
 fn test_match_find_single_file() {
     let mut cmd = run("test-files/main.c", "printf()");
 
-    cmd.assert()
-        .code(0)
-        .stdout(predicate::str::is_match("^\\[.*test-files/main.c:4]     printf\\(\"Hello %s!\\\\n\", \"world\"\\);
-$").unwrap());
+    cmd.assert().code(0).stdout(
+        predicate::str::is_match(
+            "^\\[.*test-files/main.c:4]     printf\\(\"Hello %s!\\\\n\", \"world\"\\);
+$",
+        )
+        .unwrap(),
+    );
 }
 
 #[test]
@@ -56,13 +59,15 @@ fn test_no_match_single_file() {
 fn test_multiline_match_single_file() {
     let mut cmd = run("test-files/main.c", "main() {}");
 
-    cmd.assert()
-        .code(0)
-        .stdout(predicate::str::is_match(
-"^\\[.*test-files/main.c:3-6]
+    cmd.assert().code(0).stdout(
+        predicate::str::is_match(
+            "^\\[.*test-files/main.c:3-6]
 int main\\(\\) \\{
     printf\\(\"Hello %s!\\\\n\", \"world\"\\);
     return 0;
 }
-$").unwrap());
+$",
+        )
+        .unwrap(),
+    );
 }

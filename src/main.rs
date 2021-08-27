@@ -71,9 +71,9 @@ fn main() -> io::Result<()> {
                         info!("Using options: {:#?}", opts);
                         opts
                     });
-                    let query = query_cache.entry(ext).or_insert_with(|| {
-                        Query::new(options)
-                    });
+                    let query = query_cache
+                        .entry(ext)
+                        .or_insert_with(|| Query::new(options));
 
                     run_file(query, options, f)
                 }

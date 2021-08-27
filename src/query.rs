@@ -1,3 +1,5 @@
+//! Query handling and matching.
+
 use std::collections::HashSet;
 
 use log::debug;
@@ -7,17 +9,21 @@ use crate::options::Options;
 use crate::parser::{parse_query, Ast};
 use crate::tokenizer::StandardTokenType;
 
+/// Compiled query.
 #[derive(Debug)]
 pub struct Query {
     machine: Machine,
 }
 
+/// Successful match.
 #[derive(Debug)]
 pub struct Match {
+    /// Matched tokens.
     pub t: Vec<Ast>,
 }
 
 impl Query {
+    /// Compile a query.
     pub fn new(options: &Options) -> Query {
         debug!("Query string: {}", options.query);
         let (query, _) = parse_query(&mut options.query.as_bytes(), options);
@@ -106,6 +112,7 @@ impl Query {
         )
     }
 
+    /// Get all matches for this query from input.
     pub fn matches<'a>(&'a self, input: &'a [Ast]) -> impl Iterator<Item = Match> + 'a {
         Query::potential_matches(input)
             .flat_map(move |tts| self.ast_match(tts, &[self.machine.initial]))

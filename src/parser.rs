@@ -9,8 +9,8 @@ use std::iter::Peekable;
 use crate::options::Options;
 use crate::psi::{PeekableStringIterator, Span};
 use crate::tokenizer::{
-    tokenize, tokenize_query, QueryToken, SpecialTokenType, StandardToken, StandardTokenType,
-    QueryTokenType,
+    tokenize, tokenize_query, QueryToken, QueryTokenType, SpecialTokenType, StandardToken,
+    StandardTokenType,
 };
 
 /// Abstract syntax tree for source code.
@@ -118,7 +118,8 @@ fn parse_query_ast(
 ) -> Vec<ParsedAstMatcher> {
     let mut res = Vec::new();
     loop {
-        if let Some(QueryTokenType::Standard(StandardTokenType::Symbol(c))) = iter.peek().map(|t| &t.ty)
+        if let Some(QueryTokenType::Standard(StandardTokenType::Symbol(c))) =
+            iter.peek().map(|t| &t.ty)
         {
             if recur && options.is_close_paren(c) {
                 break;
@@ -126,7 +127,9 @@ fn parse_query_ast(
         }
         if let Some(token) = iter.next() {
             match &token.ty {
-                QueryTokenType::Standard(StandardTokenType::Symbol(c)) if options.is_open_paren(c) => {
+                QueryTokenType::Standard(StandardTokenType::Symbol(c))
+                    if options.is_open_paren(c) =>
+                {
                     let op = StandardToken {
                         ty: StandardTokenType::Symbol(c.clone()),
                         span: token.span,

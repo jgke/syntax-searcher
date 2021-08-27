@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use syns::tokenizer::*;
-use syns::options::Options;
 use std::fs::File;
+use syns::options::Options;
+use syns::tokenizer::*;
 
 fn bench_tokenizer_dict(c: &mut Criterion) {
     let options = Options::new("txt".as_ref(), &["syns", "foo", "-"]);

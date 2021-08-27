@@ -114,8 +114,10 @@ impl Iterator for PeekableStringIterator {
     fn next(&mut self) -> Option<char> {
         if let Some((s, c)) = self.iter.next() {
             if c == '\n' {
-                self.line_numbers
-                    .insert(self.current_line_starting_byte, (self.current_span.hi+1, self.current_line_number));
+                self.line_numbers.insert(
+                    self.current_line_starting_byte,
+                    (self.current_span.hi + 1, self.current_line_number),
+                );
                 self.current_line_number += 1;
                 self.current_line_starting_byte = s + 1;
             }
@@ -123,8 +125,10 @@ impl Iterator for PeekableStringIterator {
             Some(c)
         } else {
             if self.current_line_starting_byte != 0 {
-                self.line_numbers
-                    .insert(self.current_line_starting_byte, (self.current_span.hi+1, self.current_line_number));
+                self.line_numbers.insert(
+                    self.current_line_starting_byte,
+                    (self.current_span.hi + 1, self.current_line_number),
+                );
                 self.current_line_number += 1;
                 self.current_line_starting_byte = 0
             }
@@ -255,8 +259,7 @@ impl PeekableStringIterator {
     }
 
     fn get_start_index(&self, offset: usize) -> usize {
-        self
-            .line_numbers
+        self.line_numbers
             .range(0..=offset)
             .map(|(start, _)| *start)
             .last()
@@ -264,8 +267,7 @@ impl PeekableStringIterator {
     }
 
     fn get_end_index(&self, offset: usize) -> usize {
-        self
-            .line_numbers
+        self.line_numbers
             .range(0..=offset)
             .map(|(_, (end, _))| *end)
             .last()
@@ -298,14 +300,17 @@ impl PeekableStringIterator {
     pub fn get_lines_including(&self, span: Span) -> Vec<String> {
         let (start_index, end_index) = self.get_span_indices(span);
 
-        self.iter.content().chars().skip(start_index).take(end_index - start_index)
+        self.iter
+            .content()
+            .chars()
+            .skip(start_index)
+            .take(end_index - start_index)
             .collect::<String>()
             .split("\n")
             .map(|s| s.to_string())
             .collect()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -401,7 +406,8 @@ mod tests {
 
     #[test]
     fn get_lines() {
-        let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo\nbar\nbaz".to_string());
+        let mut iter =
+            PeekableStringIterator::new("foo.h".to_string(), "foo\nbar\nbaz".to_string());
         let (s1, sp1) = iter.collect_while(|x| match x {
             'a'..='z' => true,
             _ => false,
@@ -431,8 +437,17 @@ mod tests {
         assert_eq!(iter.get_lines_including(sp1), vec!["foo"]);
         assert_eq!(iter.get_lines_including(sp2), vec!["bar"]);
         assert_eq!(iter.get_lines_including(sp3), vec!["baz"]);
-        assert_eq!(iter.get_lines_including(sp1.merge(&sp2)), vec!["foo", "bar"]);
-        assert_eq!(iter.get_lines_including(sp1.merge(&sp3)), vec!["foo", "bar", "baz"]);
-        assert_eq!(iter.get_lines_including(sp2.merge(&sp3)), vec!["bar", "baz"]);
+        assert_eq!(
+            iter.get_lines_including(sp1.merge(&sp2)),
+            vec!["foo", "bar"]
+        );
+        assert_eq!(
+            iter.get_lines_including(sp1.merge(&sp3)),
+            vec!["foo", "bar", "baz"]
+        );
+        assert_eq!(
+            iter.get_lines_including(sp2.merge(&sp3)),
+            vec!["bar", "baz"]
+        );
     }
 }

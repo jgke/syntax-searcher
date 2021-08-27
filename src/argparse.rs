@@ -7,9 +7,9 @@ use std::os::unix::prelude::OsStrExt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Arg {
     /// (parsed_char, entire_match, index)
-    Short(char, String, usize),
+    Short(char, OsString, usize),
     /// (parsed_match, entire_match, index)
-    Long(String, String, usize),
+    Long(String, OsString, usize),
     /// (positional_arg, index)
     Positional(OsString, usize),
 }
@@ -38,8 +38,8 @@ impl Arg {
     /// Get the entire argument (eg. --foo).
     pub fn entire_match(self) -> OsString {
         match self {
-            Arg::Short(_, s, _) | Arg::Long(_, s, _) => s.into(),
-            Arg::Positional(s, _) => s,
+            Arg::Short(_, s, _) => s.into(),
+            Arg::Long(_, s, _) | Arg::Positional(s, _) => s,
         }
     }
 
@@ -69,7 +69,7 @@ pub fn parse_args<S: AsRef<OsStr>>(args: &[S]) -> Vec<Arg> {
 
     let mut iter = args.iter();
 
-    while let Some(s) = iter.next() {
+    for s in &mut iter {
         index += 1;
         let s = s.as_ref();
         let lossy = s.to_string_lossy();
@@ -82,19 +82,18 @@ pub fn parse_args<S: AsRef<OsStr>>(args: &[S]) -> Vec<Arg> {
         } else if lossy.starts_with("--") {
             let os_str = String::from_utf8(s.as_bytes()[double_dash..].iter().copied().collect())
                 .expect("Argument contained invalid UTF-8");
-            result.push(Arg::Long( os_str.clone(), os_str, index,));
+            result.push(Arg::Long(os_str, s.to_os_string(), index));
         } else if lossy.starts_with('-') {
             let mut iter = lossy.chars();
             iter.next();
             result.push(Arg::Short(
                 iter.next().expect("unreachable"),
-                s.to_str().expect("Invalid utf8").to_string(),
+                s.to_os_string(),
                 index,
             ));
             loop {
-                let s = iter.as_str().to_string();
                 if let Some(c) = iter.next() {
-                    result.push(Arg::Short(c, s.into(), index));
+                    result.push(Arg::Short(c, s.to_os_string(), index));
                 } else {
                     break;
                 }
@@ -104,7 +103,7 @@ pub fn parse_args<S: AsRef<OsStr>>(args: &[S]) -> Vec<Arg> {
         }
     }
 
-    while let Some(s) = iter.next() {
+    for s in &mut iter {
         result.push(Arg::Positional(s.as_ref().to_os_string(), index));
     }
 
@@ -117,15 +116,27 @@ mod tests {
 
     #[test]
     fn parse_simple() {
-        assert_eq!(
-            parse_args(&["foo"]),
-            vec![Arg::Positional("foo".into(), 1)]
-        );
+        assert_eq!(parse_args(&["foo"]), vec![Arg::Positional("foo".into(), 1)]);
         assert_eq!(
             parse_args(&["foo", "bar baz"]),
             vec![
                 Arg::Positional("foo".into(), 1),
                 Arg::Positional("bar baz".into(), 2)
+            ]
+        );
+        assert_eq!(
+            parse_args(&["--foo"]),
+            vec![Arg::Long("foo".into(), "--foo".into(), 1),]
+        );
+        assert_eq!(
+            parse_args(&["--", "--foo"]),
+            vec![Arg::Positional("--foo".into(), 1),]
+        );
+        assert_eq!(
+            parse_args(&["-ab"]),
+            vec![
+                Arg::Short('a', "-ab".into(), 1),
+                Arg::Short('b', "-ab".into(), 1),
             ]
         );
     }

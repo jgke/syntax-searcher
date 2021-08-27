@@ -42,7 +42,7 @@ pub struct State {
     pub transitions: Vec<(Matcher, usize)>,
 }
 
-/// Non-deterministic finite automaton. 
+/// Non-deterministic finite automaton.
 #[derive(Debug)]
 pub struct Machine {
     /// Initial state of this machine.

@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 // This file exists mainly to enable doctests.
 //! syntax-searcher -- Generic source code searcher for paren-delimited languages.
 

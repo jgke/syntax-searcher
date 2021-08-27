@@ -263,7 +263,7 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
 
-            ArgRef::Positional(_) => {
+            ArgRef::Positional => {
                 positionals.push(arg.entire_match());
                 continue;
             }

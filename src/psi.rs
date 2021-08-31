@@ -306,7 +306,7 @@ impl PeekableStringIterator {
             .skip(start_index)
             .take(end_index - start_index)
             .collect::<String>()
-            .split("\n")
+            .lines()
             .map(|s| s.to_string())
             .collect()
     }

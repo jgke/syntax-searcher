@@ -38,7 +38,7 @@ impl Arg {
     /// Get the entire argument (eg. --foo).
     pub fn entire_match(self) -> OsString {
         match self {
-            Arg::Short(_, s, _) => s.into(),
+            Arg::Short(_, s, _) => s,
             Arg::Long(_, s, _) | Arg::Positional(s, _) => s,
         }
     }
@@ -91,12 +91,8 @@ pub fn parse_args<S: AsRef<OsStr>>(args: &[S]) -> Vec<Arg> {
                 s.to_os_string(),
                 index,
             ));
-            loop {
-                if let Some(c) = iter.next() {
-                    result.push(Arg::Short(c, s.to_os_string(), index));
-                } else {
-                    break;
-                }
+            for c in iter {
+                result.push(Arg::Short(c, s.to_os_string(), index));
             }
         } else {
             result.push(Arg::Positional(s.to_os_string(), index));

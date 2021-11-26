@@ -161,4 +161,10 @@ mod tests {
     fn test_mismatched_parens_in_source() {
         assert_eq!(run_strs("a ()", "a ([b)]"), vec!["a ([b)]"]);
     }
+
+    #[test]
+    fn test_strict_paren_matching() {
+        assert_eq!(run_strs("([a])", "([a])"), vec!["([a])"]);
+        assert_eq!(run_strs("[(a)]", "([a])"), Vec::<String>::new());
+    }
 }

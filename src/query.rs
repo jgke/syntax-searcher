@@ -77,11 +77,13 @@ impl Query {
                         }
                         (
                             Some(Ast::Delimited {
-                                content: content1, ..
+                                content: content1,
+                                op,
+                                ..
                             }),
-                            Matcher::Delimited { start, .. },
+                            Matcher::Delimited { start, op: op1, .. },
                         ) => {
-                            if self.ast_match(content1, &[*start]).is_some() {
+                            if &op.ty == op1 && self.ast_match(content1, &[*start]).is_some() {
                                 next_states.insert((left_pos + 1, *next_state));
                             }
                         }

@@ -131,6 +131,17 @@ impl Machine {
                 self.add_transition(end, new_end, Matcher::Epsilon);
                 (start, new_end)
             }
+            ParsedAstMatcher::Or(a, b) => {
+                let start = self.state().id;
+                let (start_a, end_a) = self.compile_state(a);
+                let (start_b, end_b) = self.compile_state(b);
+                let new_end = self.state().id;
+                self.add_transition(start, start_a, Matcher::Epsilon);
+                self.add_transition(start, start_b, Matcher::Epsilon);
+                self.add_transition(end_a, new_end, Matcher::Epsilon);
+                self.add_transition(end_b, new_end, Matcher::Epsilon);
+                (start, new_end)
+            }
             ParsedAstMatcher::Any => {
                 let end = self.state().id;
                 let start = self.state();

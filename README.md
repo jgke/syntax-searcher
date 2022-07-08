@@ -93,6 +93,7 @@ can be matched using backslash. The following commands are available:
 | `\"regex"` | Match any string literal with the regex pattern `regex`. |
 | `\(pattern\)` | Group several patterns. Useful for eg. `\(a a\)\+`. |
 | `\$` | Match the end of a block. |
+| `p1 p2 \| p3 p4 \| p5 p6` | Match p1 and p2, p3 and p4 OR p5 and p6. |
 
 Testing
 =======
@@ -116,8 +117,6 @@ Unimplemented features
         - Support for more number literals
         - Clojure/Ruby keyword literal
         - Arbitrary number suffixes (eg. CSS: 15px)
-- More query improvements
-    - Or-pattern with `\|`
 - Replacing strings?
 - CLI improvements
     - Fine-tune output

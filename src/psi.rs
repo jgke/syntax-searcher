@@ -94,8 +94,6 @@ pub struct PeekableStringIterator {
     /// Current Span.
     /// Can be reset with next_new_span().
     current_span: Span,
-    /// File being iterated over.
-    filename: String,
     /// Iterator.
     iter: OwnedCharIndices,
 
@@ -139,7 +137,7 @@ impl Iterator for PeekableStringIterator {
 
 impl PeekableStringIterator {
     /// Initialize the iterator.
-    pub fn new(filename: String, content: String) -> PeekableStringIterator {
+    pub fn new(_filename: String, content: String) -> PeekableStringIterator {
         let iter = OwnedCharIndicesBuilder {
             content,
             char_iter_builder: |content| content.char_indices(),
@@ -148,7 +146,6 @@ impl PeekableStringIterator {
         let current_span = Span { lo: 0, hi: 0 };
 
         PeekableStringIterator {
-            filename,
             iter,
             current_span,
 

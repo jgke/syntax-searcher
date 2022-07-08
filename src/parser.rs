@@ -101,6 +101,8 @@ pub enum ParsedAstMatcher {
     },
     /// Match a single any token
     Any,
+    /// Match end of group
+    End,
     /// Match `ParsedAstMatcher` one or more times
     Plus(Box<ParsedAstMatcher>),
     /// Match `ParsedAstMatcher` zero or more times
@@ -147,6 +149,9 @@ fn parse_query_ast(
                 })),
                 QueryTokenType::Special(SpecialTokenType::Any) => {
                     res.push(ParsedAstMatcher::Any);
+                }
+                QueryTokenType::Special(SpecialTokenType::End) => {
+                    res.push(ParsedAstMatcher::End);
                 }
                 QueryTokenType::Special(SpecialTokenType::Plus) => {
                     let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);

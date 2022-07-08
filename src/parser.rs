@@ -172,7 +172,10 @@ fn parse_query_ast(
                         Box::new(ParsedAstMatcher::Nested(inner))
                     };
                     let next = parse_query_ast(options, iter, true);
-                    res.push(ParsedAstMatcher::Or(prev, Box::new(ParsedAstMatcher::Nested(next))));
+                    res.push(ParsedAstMatcher::Or(
+                        prev,
+                        Box::new(ParsedAstMatcher::Nested(next)),
+                    ));
                 }
                 QueryTokenType::Special(SpecialTokenType::Nested(list)) => {
                     let list =
@@ -211,5 +214,5 @@ pub fn parse_query<R: Read>(
     let parsed = parse_query_ast(options, &mut tokens.into_iter().peekable(), false);
     debug!("Parsed query: {:#?}", parsed);
 
-    ( parsed, iter )
+    (parsed, iter)
 }

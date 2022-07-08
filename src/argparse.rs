@@ -80,7 +80,7 @@ pub fn parse_args<S: AsRef<OsStr>>(args: &[S]) -> Vec<Arg> {
             // The rest of parameters are positionals
             break;
         } else if lossy.starts_with("--") {
-            let os_str = String::from_utf8(s.as_bytes()[double_dash..].iter().copied().collect())
+            let os_str = String::from_utf8(s.as_bytes()[double_dash..].to_vec())
                 .expect("Argument contained invalid UTF-8");
             result.push(Arg::Long(os_str, s.to_os_string(), index));
         } else if lossy.starts_with('-') {

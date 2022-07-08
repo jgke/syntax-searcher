@@ -170,7 +170,10 @@ mod tests {
 
     #[test]
     fn test_or() {
-        assert_eq!(run_strs("a c d \\| c \\(a a\\) b\\+", "a c c b b"), Vec::<String>::new());
+        assert_eq!(
+            run_strs("a c d \\| c \\(a a\\) b\\+", "a c c b b"),
+            Vec::<String>::new()
+        );
         assert_eq!(run_strs("a c \\| \\(a a\\) b\\+", "a a b"), vec!["a a b"]);
         assert_eq!(run_strs("a c \\| \\(a a\\) b\\+", "a c b"), vec!["a c"]);
     }

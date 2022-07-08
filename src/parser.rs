@@ -107,6 +107,8 @@ pub enum ParsedAstMatcher {
     Plus(Box<ParsedAstMatcher>),
     /// Match `ParsedAstMatcher` zero or more times
     Star(Box<ParsedAstMatcher>),
+    /// Match either `ParsedAstMatcher`
+    Or(Box<ParsedAstMatcher>, Box<ParsedAstMatcher>),
     /// Grouped `ParsedAstMatcher`s
     Nested(Vec<ParsedAstMatcher>),
     /// Match string literal by regex
@@ -161,6 +163,17 @@ fn parse_query_ast(
                     let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
                     res.push(ParsedAstMatcher::Star(Box::new(prev)));
                 }
+                QueryTokenType::Special(SpecialTokenType::Or) => {
+                    let prev = if res.len() <= 1 {
+                        Box::new(res.pop().unwrap_or(ParsedAstMatcher::Any))
+                    } else {
+                        let inner = res;
+                        res = Vec::new();
+                        Box::new(ParsedAstMatcher::Nested(inner))
+                    };
+                    let next = parse_query_ast(options, iter, true);
+                    res.push(ParsedAstMatcher::Or(prev, Box::new(ParsedAstMatcher::Nested(next))));
+                }
                 QueryTokenType::Special(SpecialTokenType::Nested(list)) => {
                     let list =
                         parse_query_ast(options, &mut list.clone().into_iter().peekable(), false);
@@ -195,8 +208,8 @@ pub fn parse_query<R: Read>(
     let (tokens, iter) = tokenize_query(file, options);
     debug!("Tokenized query: {:#?}", tokens);
     debug!("Parsing query");
-    (
-        parse_query_ast(options, &mut tokens.into_iter().peekable(), false),
-        iter,
-    )
+    let parsed = parse_query_ast(options, &mut tokens.into_iter().peekable(), false);
+    debug!("Parsed query: {:#?}", parsed);
+
+    ( parsed, iter )
 }

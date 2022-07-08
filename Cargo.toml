@@ -2,23 +2,23 @@
 name = "syns"
 version = "0.1.0"
 authors = ["Jaakko Hannikainen <jgke@jgke.fi>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-env_logger = "0.8"
+env_logger = "0.9"
 ignore = "0.4"
 lazy_static = "1.4"
 log = "0.4"
-ouroboros = "0.9" 
-regex = "1.5"
+ouroboros = "0.15"
+regex = "1.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [dev-dependencies]
-assert_cmd = "0.10"
-predicates = "1"
+assert_cmd = "2.0"
+predicates = "2.1"
 criterion = "0.3"
 
 [[bench]]

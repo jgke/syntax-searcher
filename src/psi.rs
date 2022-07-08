@@ -68,7 +68,7 @@ impl Clone for OwnedCharIndices {
     fn clone(&self) -> Self {
         OwnedCharIndicesBuilder {
             content: self.borrow_content().clone(),
-            char_iter_builder: |content: &str| content.char_indices(),
+            char_iter_builder: |content: &String| content.char_indices(),
         }
         .build()
     }

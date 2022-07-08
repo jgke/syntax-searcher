@@ -25,6 +25,8 @@ pub enum Matcher {
     },
     /// Match any token.
     Any,
+    /// Match end of group
+    End,
     /// Match a string literal with a regex.
     Regex(RegexEq),
     /// Match anything without consuming the next token.
@@ -133,6 +135,12 @@ impl Machine {
                 let end = self.state().id;
                 let start = self.state();
                 start.add_transition(end, Matcher::Any);
+                (start.id, end)
+            }
+            ParsedAstMatcher::End => {
+                let end = self.state().id;
+                let start = self.state();
+                start.add_transition(end, Matcher::End);
                 (start.id, end)
             }
             ParsedAstMatcher::Regex(regex) => {

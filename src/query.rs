@@ -59,6 +59,10 @@ impl Query {
                         (Some(_), Matcher::Any) => {
                             next_states.insert((left_pos + 1, *next_state));
                         }
+                        (Some(_), Matcher::End) => {}
+                        (None, Matcher::End) => {
+                            next_states.insert((left_pos + 1, *next_state));
+                        }
                         (_, Matcher::Epsilon) => {
                             next_states.insert((left_pos, *next_state));
                         }

@@ -16,6 +16,8 @@ pub enum SpecialTokenType {
     Star,
     /// Match previous matcher one or more times.
     Plus,
+    /// Match group end
+    End,
     /// Match string literals with regex.
     Regex(String),
     /// Grouped matchers.
@@ -321,6 +323,7 @@ fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> Q
         '.' => QueryTokenType::Special(SpecialTokenType::Any),
         '*' => QueryTokenType::Special(SpecialTokenType::Star),
         '+' => QueryTokenType::Special(SpecialTokenType::Plus),
+        '$' => QueryTokenType::Special(SpecialTokenType::End),
         '"' => {
             let ty = QueryTokenType::Special(SpecialTokenType::Regex(read_string_content(iter)));
             return QueryToken {
@@ -492,7 +495,7 @@ mod tests {
 
         let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
         test_query(
-            r#"\.\+\*\"foo.*bar""#,
+            r#"\.\+\*\"foo.*bar"\$"#,
             vec![
                 q(QueryTokenType::Special(SpecialTokenType::Any), 0, 1),
                 q(QueryTokenType::Special(SpecialTokenType::Plus), 2, 3),
@@ -502,6 +505,7 @@ mod tests {
                     7,
                     16,
                 ),
+                q(QueryTokenType::Special(SpecialTokenType::End), 17, 18),
             ],
             opts,
         );

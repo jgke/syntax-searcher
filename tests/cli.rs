@@ -71,3 +71,25 @@ $",
         .unwrap(),
     );
 }
+
+#[test]
+fn test_match_group_end() {
+    let mut cmd = run("test-files/main.c", "printf(\\.,\\.\\$)");
+
+    cmd.assert().code(0).stdout(
+        predicate::str::is_match(
+            "^\\[.*test-files/main.c:4]     printf\\(\"Hello %s!\\\\n\", \"world\"\\);
+$",
+        )
+        .unwrap(),
+    );
+}
+
+#[test]
+fn test_not_match_group_end() {
+    let mut cmd = run("test-files/main.c", "printf(\\.,\\$)");
+
+    cmd.assert()
+        .code(1)
+        .stdout(predicate::str::is_match("^$").unwrap());
+}

@@ -91,7 +91,10 @@ impl Machine {
     }
 
     fn add_transition(&mut self, from: usize, to: usize, with: Matcher) {
-        self.states.get_mut(&from).unwrap().add_transition(to, with);
+        self.states
+            .get_mut(&from)
+            .expect("Internal error when compiling query")
+            .add_transition(to, with);
     }
 
     fn state(&mut self) -> &mut State {
@@ -213,7 +216,7 @@ pub fn compile_query(query: Vec<ParsedAstMatcher>) -> Machine {
     machine
         .states
         .get_mut(&end)
-        .unwrap()
+        .expect("Internal error when compiling query")
         .add_transition(ACCEPT.id, Matcher::Epsilon);
     machine
 }

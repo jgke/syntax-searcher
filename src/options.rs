@@ -327,7 +327,7 @@ impl Options {
         let mut opts: Options = EXTENSION_TO_SETTINGS
             .get(&lang)
             .cloned()
-            .unwrap_or_else(Options::default);
+            .unwrap_or_default();
 
         for cmd in cmds {
             match cmd {
@@ -394,14 +394,14 @@ mod tests {
 
     #[test]
     fn parse_options() {
-        let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
+        let options = Options::new("js".as_ref(), &["syns", "query", "filename"]);
         assert_eq!(options.query, "query");
         assert_eq!(options.paths[0], "filename");
     }
 
     #[test]
     fn options_parens() {
-        let options = Options::new("js".as_ref(), &vec!["syns", "query", "filename"]);
+        let options = Options::new("js".as_ref(), &["syns", "query", "filename"]);
         assert!(options.is_open_paren("{"));
         assert!(options.is_open_paren("("));
         assert!(options.is_open_paren("["));

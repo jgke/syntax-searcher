@@ -17,6 +17,12 @@
         "single_comments": [";"],
         "multi_comments": []
     },
+    "haskell": {
+        "extensions": ["hs"],
+        "strings": ["\"", "'"],
+        "single_comments": ["--"],
+        "multi_comments": [["{-", "-}"]]
+    },
     "java": {
         "extensions": ["java"],
         "strings": ["\"", "'"],

@@ -6,7 +6,7 @@ Language-independent command-line utility for syntax-aware pattern matching.
 - Language-independent, works for most languages
 - Simple regex-like search patterns
 - Easily search things like
-    - Struct definitions: `syns 'struct Span { }" +' src/psi.rs`
+    - Struct definitions: `syns 'struct Span { }' src/psi.rs`
     - Function signatures: `syns 'int fprintf ( )' /usr/include/stdio.h`
     - SQL injections: `syns '\"INSERT.*" +' src/db/db_service.scala`
 

@@ -75,6 +75,11 @@ fn main() -> io::Result<()> {
                         .entry(ext)
                         .or_insert_with(|| Query::new(options));
 
+                    if options.dump_machine {
+                        println!("{}", query.machine.to_dot_graph());
+                        break;
+                    }
+
                     run_file(query, options, f)
                 }
                 Err(e) => Err(e.into()),

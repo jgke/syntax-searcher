@@ -28,6 +28,9 @@ pub struct Options {
 
     /// Print only matching parts of the source code.
     pub only_matching: bool,
+
+    /// Print the state machine as a dot graph and exit.
+    pub dump_machine: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +43,7 @@ enum OptionCommand {
     RemoveMultiComment(String, String),
     Language(String),
     OnlyMatching,
+    DumpMachine,
     PrintOptionsAndQuit,
 }
 
@@ -93,6 +97,7 @@ impl Default for Options {
             ranges: true,
 
             only_matching: false,
+            dump_machine: false,
         }
     }
 }
@@ -260,6 +265,7 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             }
 
             ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
+            ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
 
@@ -350,6 +356,7 @@ impl Options {
                     opts.multi_line_comments.remove(&(start, end));
                 }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
+                OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}
                 OptionCommand::Language(_) => {}
             }

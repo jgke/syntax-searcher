@@ -12,7 +12,8 @@ use crate::tokenizer::StandardTokenType;
 /// Compiled query.
 #[derive(Debug)]
 pub struct Query {
-    machine: Machine,
+    /// The state machine for the query.
+    pub machine: Machine,
 }
 
 /// Successful match.

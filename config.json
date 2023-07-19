@@ -17,6 +17,12 @@
         "single_comments": [";"],
         "multi_comments": []
     },
+    "elixir": {
+        "extensions": ["ex", "exs"],
+        "strings": ["\"", "'"],
+        "single_comments": ["#"],
+        "multi_comments": []
+    },
     "haskell": {
         "extensions": ["hs"],
         "strings": ["\"", "'"],

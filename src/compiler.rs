@@ -315,7 +315,7 @@ pub fn optimize(machine: &mut Machine) {
         let mut remove_ids = Vec::new();
 
         let a = &machine.states[id];
-        for (matcher, new_id) in dbg!(&a.transitions) {
+        for (matcher, new_id) in &a.transitions {
             if let Matcher::Epsilon = matcher {
                 let b = &machine.states[new_id];
                 remove_ids.push(false);
@@ -327,8 +327,6 @@ pub fn optimize(machine: &mut Machine) {
         let mut iter = remove_ids.iter();
         machine.states.get_mut(&id).expect("internal error").transitions.retain(|_| *iter.next().unwrap());
         machine.states.get_mut(&id).expect("internal error").transitions.append(&mut new_transitions);
-
-        dbg!(&machine.states[id].transitions);
     }
 
     // clean up unused states

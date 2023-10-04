@@ -128,6 +128,7 @@ pub fn tokenize_recur(
     is_query: bool,
 ) -> Vec<QueryToken> {
     let mut res = Vec::new();
+    let mut had_whitespace = false;
     while let Some(c) = iter.peek() {
         if options
             .single_line_comments
@@ -135,6 +136,7 @@ pub fn tokenize_recur(
             .any(|c| iter.starts_with(c))
         {
             flush_single_line(iter);
+            had_whitespace = true;
             continue;
         }
         if let Some((start, end)) = options
@@ -143,6 +145,7 @@ pub fn tokenize_recur(
             .find(|(start, _)| iter.starts_with(start))
         {
             flush_multi_line_comment(iter, start, end);
+            had_whitespace = true;
             continue;
         }
         let token = match c {
@@ -162,12 +165,19 @@ pub fn tokenize_recur(
             }
             ' ' | '\t' | '\n' => {
                 iter.next();
+                had_whitespace = true;
                 continue;
             }
             'a'..='z' | 'A'..='Z' | '_' => read_identifier(iter),
             '0'..='9' => read_number(iter, options),
-            _ => read_other(iter),
+            c if options.is_open_paren(&c.to_string()) || options.is_close_paren(&c.to_string()) => {
+                res.push(read_paren(iter));
+                had_whitespace = true;
+                continue;
+            }
+            _ => read_other(&mut res, had_whitespace, iter)
         };
+        had_whitespace = false;
         res.push(token);
     }
     res
@@ -306,12 +316,46 @@ fn read_identifier(iter: &mut PeekableStringIterator) -> QueryToken {
     }
 }
 
-fn read_other(iter: &mut PeekableStringIterator) -> QueryToken {
+fn read_paren(iter: &mut PeekableStringIterator) -> QueryToken {
     match iter.next_new_span() {
-        Some(c) => QueryToken {
-            ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
-            span: iter.current_span(),
-        },
+        Some(c) => {
+            QueryToken {
+                ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
+                span: iter.current_span(),
+            }
+        }
+        None => panic!("Unexpected end of file"),
+    }
+}
+
+fn read_other(res: &mut Vec<QueryToken>, had_whitespace: bool, iter: &mut PeekableStringIterator) -> QueryToken {
+    match iter.next_new_span() {
+        Some(c) => {
+            if !had_whitespace {
+                if let Some(QueryToken {
+                    ty: QueryTokenType::Standard(StandardTokenType::Symbol(old_c)),
+                    span
+                }) = res.last() {
+                    let new_symbol = format!("{}{}", old_c, c);
+                    let new_span = span.merge(&iter.current_span());
+                    res.pop();
+                    QueryToken {
+                        ty: QueryTokenType::Standard(StandardTokenType::Symbol(new_symbol)),
+                        span: new_span,
+                    }
+                } else {
+                    QueryToken {
+                        ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
+                        span: iter.current_span(),
+                    }
+                }
+            } else {
+                QueryToken {
+                    ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
+                    span: iter.current_span(),
+                }
+            }
+        }
         None => panic!("Unexpected end of file"),
     }
 }
@@ -450,6 +494,17 @@ mod tests {
             "+",
             vec![t(StandardTokenType::Symbol("+".to_string()), 0, 0)],
         );
+        test(
+            "++",
+            vec![t(StandardTokenType::Symbol("++".to_string()), 0, 1)],
+        );
+        test(
+            "+ +",
+            vec![
+            t(StandardTokenType::Symbol("+".to_string()), 0, 0),
+            t(StandardTokenType::Symbol("+".to_string()), 2, 2)
+            ],
+        );
     }
 
     #[test]
@@ -477,13 +532,7 @@ mod tests {
         test(
             r#"\.\+\*\"foo.*bar""#,
             vec![
-                t(StandardTokenType::Symbol("\\".to_string()), 0, 0),
-                t(StandardTokenType::Symbol(".".to_string()), 1, 1),
-                t(StandardTokenType::Symbol("\\".to_string()), 2, 2),
-                t(StandardTokenType::Symbol("+".to_string()), 3, 3),
-                t(StandardTokenType::Symbol("\\".to_string()), 4, 4),
-                t(StandardTokenType::Symbol("*".to_string()), 5, 5),
-                t(StandardTokenType::Symbol("\\".to_string()), 6, 6),
+                t(StandardTokenType::Symbol("\\.\\+\\*\\".to_string()), 0, 6),
                 t(
                     StandardTokenType::StringLiteral("foo.*bar".to_string()),
                     7,

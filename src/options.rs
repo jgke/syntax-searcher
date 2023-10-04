@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
+use regex::Regex;
 
 /// Parsed options.
 #[derive(Clone, Debug)]
@@ -16,6 +17,8 @@ pub struct Options {
     pub paths: Vec<OsString>,
     /// Query string.
     pub query: String,
+    /// Ignore paths matching this regex.
+    pub ignore_files_matching: Option<Regex>,
 
     /// Set of strings which start or end a string literal (eg. "'").
     pub string_characters: HashSet<String>,
@@ -42,6 +45,7 @@ enum OptionCommand {
     AddMultiComment(String, String),
     RemoveMultiComment(String, String),
     Language(String),
+    IgnoreFilesMatching(Regex),
     OnlyMatching,
     DumpMachine,
     PrintOptionsAndQuit,
@@ -88,6 +92,7 @@ impl Default for Options {
         Options {
             paths: Vec::new(),
             query: "".to_string(),
+            ignore_files_matching: None,
             string_characters: ["\"", "'", "`"].iter().map(|s| s.to_string()).collect(),
             single_line_comments: ["//"].iter().map(|s| s.to_string()).collect(),
             multi_line_comments: [("/*", "*/")]
@@ -118,16 +123,19 @@ Pass --help for more information.",
 Search for PATTERN in PATHs.
 
 Options:
-  -h, --help                 Display this message
-  --lang LANGUAGE            Force defaults for LANGUAGE. Call 'syns --lang'
-                             to display available languages.
+  -h, --help                    Display this message
+  --lang LANGUAGE               Force defaults for LANGUAGE. Call 'syns --lang'
+                                to display available languages.
 
-  -s, --[no-]string CHARS    Add or remove CHARS from string delimiters
-  -c, --[no-]comment CHARS   Add or remove CHARS from single-line comments
-  -m, --[no-]multi BEGIN END Add or remove (BEGIN, END) from multi-line comments
+  -s, --[no-]string CHARS       Add or remove CHARS from string delimiters
+  -c, --[no-]comment CHARS      Add or remove CHARS from single-line comments
+  -m, --[no-]multi BEGIN END    Add or remove (BEGIN, END) from multi-line
+                                comments
 
-  -o, --only-matching        Print only the matched parts
-  --options                  Print what options would have been used to parse FILE
+  --ignore-files-matching REGEX Don't scan files matching REGEX
+  -o, --only-matching           Print only the matched parts
+  --options                     Print what options would have been used to
+                                parse FILE
 "#,
             filename
         );
@@ -264,6 +272,22 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                 }
             }
 
+            ArgRef::Long("ignore-files-matching") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    let s = arg.to_string_lossy().to_string();
+                    match Regex::new(&s) {
+                        Ok(r) => OptionCommand::IgnoreFilesMatching(r),
+                        Err(e) => {
+                            println!("Invalid regex argument for --ignore-files-matching: {}", e);
+                            print_help(false, 1)
+                        }
+                    }
+                } else {
+                    println!("Missing argument for --ignore-files-matching");
+                    print_help(false, 1)
+                }
+            }
+
             ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
@@ -354,6 +378,9 @@ impl Options {
                 }
                 OptionCommand::RemoveMultiComment(start, end) => {
                     opts.multi_line_comments.remove(&(start, end));
+                }
+                OptionCommand::IgnoreFilesMatching(regex) => {
+                    opts.ignore_files_matching = Some(regex);
                 }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
                 OptionCommand::DumpMachine => opts.dump_machine = true,

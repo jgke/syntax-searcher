@@ -18,7 +18,7 @@ mod wrappers;
 
 use crate::query::Query;
 use ignore::WalkBuilder;
-use log::info;
+use log::{info, debug};
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
@@ -62,13 +62,20 @@ fn main() -> io::Result<()> {
             match f {
                 Ok(f) => {
                     let file_path = std::path::Path::new(f.path());
+                    if let Some(r) = &options.ignore_files_matching {
+                        let f = file_path.to_string_lossy();
+                        if r.is_match(&f) {
+                            info!("Ignoring file {} as it matches regex {:?}", &f, &r);
+                            continue;
+                        }
+                    }
 
                     let ext = file_path.extension().unwrap_or(&txt).to_owned();
 
                     let options = opt_cache.entry(ext.clone()).or_insert_with_key(|ext| {
                         // This options accounts for proper file extensions
                         let opts = Options::new(ext, &args);
-                        info!("Using options: {:#?}", opts);
+                        debug!("Created new options for extension .{}:  {:#?}", ext.to_string_lossy(), opts);
                         opts
                     });
                     let query = query_cache

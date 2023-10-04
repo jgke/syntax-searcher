@@ -106,7 +106,6 @@ Unimplemented features
 - Highlighting
     - ...if possible
     - `{ \. \* \[Viewport\] = `
-- Fix tab rendering off-by-one
 - Proper newline handling
 - More language-specific defaults
 - More parsing strategies

@@ -1,8 +1,9 @@
 //! Main entry point for the program.
 
 use log::debug;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
+use termcolor::{Color, ColorSpec, StandardStream, WriteColor};
 
 use crate::options::*;
 use crate::parser::*;
@@ -11,6 +12,20 @@ use crate::query::*;
 #[cfg(not(tarpaulin_include))]
 /// Parse `file` with `options` and print all matches.
 pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) -> bool {
+    /* Colors from ripgrep's printer crate */
+    #[cfg(unix)]
+    let path_style: Color = Color::Magenta;
+    #[cfg(windows)]
+    let path_style: Color = Color::Cyan;
+    let line_number_style: Color = Color::Green;
+    let match_fg_color: Color = Color::Red;
+
+    let reset_spec = ColorSpec::new();
+    let mut path_spec = ColorSpec::new(); path_spec.set_fg(Some(path_style));
+    let mut line_number_spec = ColorSpec::new(); line_number_spec.set_fg(Some(line_number_style));
+    let mut match_spec = ColorSpec::new(); match_spec.set_fg(Some(match_fg_color)).set_bold(true);
+
+    let mut stdout = StandardStream::stdout(options.color);
     debug!("Parsing file");
     let (file, iter) = parse_file(file, options);
     debug!("Enumerating matches");
@@ -29,16 +44,37 @@ pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, fi
             format! {"[{}:{}-{}]", &filename.to_string_lossy(), start, end}
         };
         if options.only_matching {
-            println!("{}: {}", line_number, iter.get_content_between(span));
+            let _ = stdout.set_color(&path_spec);
+            let _ = write!(stdout, "{}", line_number);
+            let _ = stdout.set_color(&match_spec);
+            let _ = writeln!(stdout, " {}", iter.get_content_between(span));
         } else {
-            let lines = iter.get_lines_including(span);
+            let (head, lines, tail) = iter.get_lines_including(span);
             if lines.len() == 1 {
-                println!("{} {}", line_number, lines[0]);
+                let _ = stdout.set_color(&path_spec);
+                let _ = write!(stdout, "{}", line_number);
+                let _ = stdout.set_color(&reset_spec);
+                let _ = write!(stdout, " {}", head);
+                let _ = stdout.set_color(&match_spec);
+                let _ = write!(stdout, "{}", lines[0]);
+                let _ = stdout.set_color(&reset_spec);
+                let _ = writeln!(stdout, "{}", tail);
             } else {
-                println!("{}", line_number);
-                for line in lines {
-                    println!("{}", line);
+                let _ = stdout.set_color(&path_spec);
+                let _ = writeln!(stdout, "{}", line_number);
+                let _ = stdout.set_color(&reset_spec);
+                let _ = write!(stdout, "{}", head);
+                let mut lines_peekable = lines.into_iter().peekable();
+                while let Some(line) = lines_peekable.next() {
+                    let _ = stdout.set_color(&match_spec);
+                    if lines_peekable.peek().is_some() {
+                        let _ = writeln!(stdout, "{}", line);
+                    } else {
+                        let _ = write!(stdout, "{}", line);
+                    }
                 }
+                let _ = stdout.set_color(&reset_spec);
+                let _ = writeln!(stdout, "{}", tail);
             }
         }
     }

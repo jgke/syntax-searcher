@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
+use termcolor::ColorChoice;
 
 /// Parsed options.
 #[derive(Clone, Debug)]
@@ -33,6 +34,8 @@ pub struct Options {
 
     /// Print only matching parts of the source code.
     pub only_matching: bool,
+    /// Use colored output.
+    pub color: ColorChoice,
 
     /// Print the state machine as a dot graph and exit.
     pub dump_machine: bool,
@@ -50,6 +53,7 @@ enum OptionCommand {
     OnlyFilesMatching(Regex),
     IgnoreFilesMatching(Regex),
     OnlyMatching,
+    Color(ColorChoice),
     DumpMachine,
     PrintOptionsAndQuit,
 }
@@ -106,6 +110,7 @@ impl Default for Options {
             ranges: true,
 
             only_matching: false,
+            color: ColorChoice::Auto,
             dump_machine: false,
         }
     }
@@ -141,6 +146,7 @@ Options:
   -o, --only-matching           Print only the matched parts
   --options                     Print what options would have been used to
                                 parse FILE
+  --[no-]color                  Enable or disable color output
 "#,
             filename
         );
@@ -308,6 +314,9 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                 }
             }
 
+            ArgRef::Long("color") => OptionCommand::Color(ColorChoice::Always),
+            ArgRef::Long("no-color") => OptionCommand::Color(ColorChoice::Never),
+
             ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
@@ -406,6 +415,7 @@ impl Options {
                     opts.ignore_files_matching = Some(regex);
                 }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
+                OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}
                 OptionCommand::Language(_) => {}

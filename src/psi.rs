@@ -306,18 +306,34 @@ impl PeekableStringIterator {
     }
 
     /// Get line contents for the two matches.
-    pub fn get_lines_including(&self, span: Span) -> Vec<String> {
+    pub fn get_lines_including(&self, span: Span) -> (String, Vec<String>, String) {
         let (start_index, end_index) = self.get_span_indices(span);
 
-        self.iter
+        let head = self.iter
             .content()
             .chars()
             .skip(start_index)
-            .take(end_index - start_index)
+            .take(span.lo - start_index)
+            .collect();
+
+        let tail = self.iter
+            .content()
+            .chars()
+            .skip(span.hi + 1)
+            .take(end_index - (span.hi + 1))
+            .collect();
+
+        let content = self.iter
+            .content()
+            .chars()
+            .skip(span.lo)
+            .take(span.hi - span.lo + 1)
             .collect::<String>()
             .lines()
             .map(|s| s.to_string())
-            .collect()
+            .collect();
+
+        (head, content, tail)
     }
 }
 
@@ -443,19 +459,19 @@ mod tests {
         assert_eq!(iter.get_line_information(sp1.merge(&sp3)), (1, 3));
         assert_eq!(iter.get_line_information(sp2.merge(&sp3)), (2, 3));
 
-        assert_eq!(iter.get_lines_including(sp1), vec!["foo"]);
-        assert_eq!(iter.get_lines_including(sp2), vec!["bar"]);
-        assert_eq!(iter.get_lines_including(sp3), vec!["baz"]);
+        assert_eq!(iter.get_lines_including(sp1).1, vec!["foo"]);
+        assert_eq!(iter.get_lines_including(sp2).1, vec!["bar"]);
+        assert_eq!(iter.get_lines_including(sp3).1, vec!["baz"]);
         assert_eq!(
-            iter.get_lines_including(sp1.merge(&sp2)),
+            iter.get_lines_including(sp1.merge(&sp2)).1,
             vec!["foo", "bar"]
         );
         assert_eq!(
-            iter.get_lines_including(sp1.merge(&sp3)),
+            iter.get_lines_including(sp1.merge(&sp3)).1,
             vec!["foo", "bar", "baz"]
         );
         assert_eq!(
-            iter.get_lines_including(sp2.merge(&sp3)),
+            iter.get_lines_including(sp2.merge(&sp3)).1,
             vec!["bar", "baz"]
         );
     }

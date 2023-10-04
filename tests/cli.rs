@@ -8,7 +8,7 @@ fn run(path: &str, query: &str) -> Command {
     d.push(path);
 
     let mut cmd = Command::cargo_bin("syns").unwrap();
-    cmd.arg(query).arg(d);
+    cmd.arg("--no-color").arg(query).arg(d);
     cmd
 }
 

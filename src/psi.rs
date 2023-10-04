@@ -138,6 +138,18 @@ impl Iterator for PeekableStringIterator {
 impl PeekableStringIterator {
     /// Initialize the iterator.
     pub fn new(_filename: String, content: String) -> PeekableStringIterator {
+        let mut line_numbers = BTreeMap::new();
+
+        // If we don't do this pre-scan, we'll get an error (for files with zero end-of-lines) or
+        // an off-by-one (files not ending with eol) in get_line_information
+        if let Some(c) = content.chars().last() {
+            if c != '\n' {
+                let last_line_start = content.rfind('\n').map(|p| p + 1).unwrap_or(0);
+                let line_number = content.chars().filter(|&c| c == '\n').count() + 1;
+                line_numbers.insert(last_line_start, (content.bytes().count(), line_number));
+            }
+        }
+
         let iter = OwnedCharIndicesBuilder {
             content,
             char_iter_builder: |content| content.char_indices(),
@@ -151,7 +163,7 @@ impl PeekableStringIterator {
 
             current_line_starting_byte: 0,
             current_line_number: 1,
-            line_numbers: BTreeMap::new(),
+            line_numbers,
         }
     }
 

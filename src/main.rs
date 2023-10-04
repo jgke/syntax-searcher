@@ -18,7 +18,7 @@ mod wrappers;
 
 use crate::query::Query;
 use ignore::WalkBuilder;
-use log::{info, debug};
+use log::{debug, info};
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
@@ -32,13 +32,8 @@ fn run_file(
     file: ignore::DirEntry,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     let path = file.path();
-    let attr = fs::metadata(&path)?;
-    if !attr.is_dir() {
-        let fp = File::open(&path)?;
-        Ok(run::run_cached(query, options, path, fp))
-    } else {
-        Ok(false)
-    }
+    let fp = File::open(path)?;
+    Ok(run::run_cached(query, options, path, fp))
 }
 
 fn main() -> io::Result<()> {
@@ -62,20 +57,43 @@ fn main() -> io::Result<()> {
             match f {
                 Ok(f) => {
                     let file_path = std::path::Path::new(f.path());
-                    if let Some(r) = &options.ignore_files_matching {
-                        let f = file_path.to_string_lossy();
-                        if r.is_match(&f) {
-                            info!("Ignoring file {} as it matches regex {:?}", &f, &r);
+                    let lossy_filename = file_path.to_string_lossy();
+                    if let Some(r) = &options.only_files_matching {
+                        if !r.is_match(&lossy_filename) {
+                            info!(
+                                "Ignoring file {} as it didn't match regex '{:?}'",
+                                &lossy_filename, &r
+                            );
                             continue;
                         }
                     }
+                    if let Some(r) = &options.ignore_files_matching {
+                        if r.is_match(&lossy_filename) {
+                            info!(
+                                "Ignoring file {} as it matches regex '{:?}'",
+                                &lossy_filename, &r
+                            );
+                            continue;
+                        }
+                    }
+                    if let Ok(attr) = fs::metadata(file_path) {
+                        if attr.is_dir() {
+                            continue;
+                        }
+                    }
+
+                    info!("Scanning file {}", lossy_filename);
 
                     let ext = file_path.extension().unwrap_or(&txt).to_owned();
 
                     let options = opt_cache.entry(ext.clone()).or_insert_with_key(|ext| {
                         // This options accounts for proper file extensions
                         let opts = Options::new(ext, &args);
-                        debug!("Created new options for extension .{}:  {:#?}", ext.to_string_lossy(), opts);
+                        debug!(
+                            "Created new options for extension .{}:  {:#?}",
+                            ext.to_string_lossy(),
+                            opts
+                        );
                         opts
                     });
                     let query = query_cache

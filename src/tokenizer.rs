@@ -226,7 +226,7 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
                 i128::from_str_radix(
                     &content
                         .chars()
-                        .take_while(|c| matches!(c, '0'..='9'))
+                        .take_while(|c| c.is_ascii_digit())
                         .collect::<String>(),
                     radix,
                 )
@@ -244,7 +244,7 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
                 f64::from_str(
                     &content
                         .chars()
-                        .take_while(|c| matches!(c, '0'..='9' | '.'))
+                        .take_while(|&c| c.is_ascii_digit() || c == '.')
                         .collect::<String>(),
                 )
                 .ok()
@@ -253,7 +253,7 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
                 f64::from_str(
                     &content
                         .chars()
-                        .take_while(|c| matches!(c, '0'..='9'))
+                        .take_while(|c| c.is_ascii_digit())
                         .collect::<String>(),
                 )
                 .ok()
@@ -298,11 +298,7 @@ fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
 }
 
 fn read_identifier(iter: &mut PeekableStringIterator) -> QueryToken {
-    let (content, span) = iter.collect_while(|c| {
-        matches!(c,
-            '0'..='9' | 'a'..='z' | 'A'..='Z' | '_'
-        )
-    });
+    let (content, span) = iter.collect_while(|c| c.is_ascii_alphanumeric() || c == '_');
 
     QueryToken {
         ty: QueryTokenType::Standard(StandardTokenType::Identifier(content)),

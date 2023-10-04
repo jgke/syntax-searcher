@@ -58,17 +58,14 @@ impl Matcher {
     pub fn to_dot_condition(&self) -> String {
         (match self {
             Matcher::Token(t) => format!("token {:?}", t),
-            Matcher::Delimited {
-                op,
-                cp,
-                start,
-            } => format!("delim {:?} {:?} {}", op, cp, start),
+            Matcher::Delimited { op, cp, start } => format!("delim {:?} {:?} {}", op, cp, start),
             Matcher::Any => "*".to_string(),
             Matcher::End => "$".to_string(),
             Matcher::Regex(r) => format!("r\"{}\"", r.as_str()),
             Matcher::Epsilon => "e".to_string(),
             Matcher::Accept => "accept".to_string(),
-        }).replace('"', "\\\"")
+        })
+        .replace('"', "\\\"")
     }
 }
 
@@ -225,9 +222,16 @@ impl Machine {
         }
     }
 
-    fn list_symbols(&self, start_from: usize, prefix: &str, used: &mut HashSet<usize>) -> (String, Vec<usize>) {
+    fn list_symbols(
+        &self,
+        start_from: usize,
+        prefix: &str,
+        used: &mut HashSet<usize>,
+    ) -> (String, Vec<usize>) {
         let id = start_from;
-        if id == ACCEPT.id || used.contains(&id) {return ("".to_string(), vec![]);};
+        if id == ACCEPT.id || used.contains(&id) {
+            return ("".to_string(), vec![]);
+        };
         used.insert(id);
         let mut output = String::new();
         let mut out_ids = vec![];
@@ -235,11 +239,25 @@ impl Machine {
             match matcher {
                 Matcher::Delimited { start, .. } => {
                     let new_prefix = format!("{}{}_", prefix, id);
-                    output += &format!("  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n", prefix, id, new_prefix, start, matcher.to_dot_condition());
+                    output += &format!(
+                        "  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n",
+                        prefix,
+                        id,
+                        new_prefix,
+                        start,
+                        matcher.to_dot_condition()
+                    );
                     let (edges, new_outs) = self.list_symbols(*start, &new_prefix, used);
                     output += &edges;
                     for out in new_outs {
-                        output += &format!("  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n", new_prefix, out, prefix, target_id, Matcher::Epsilon.to_dot_condition());
+                        output += &format!(
+                            "  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n",
+                            new_prefix,
+                            out,
+                            prefix,
+                            target_id,
+                            Matcher::Epsilon.to_dot_condition()
+                        );
                     }
 
                     if id != ACCEPT.id {
@@ -250,10 +268,23 @@ impl Machine {
                 }
                 _ => {
                     if *target_id == ACCEPT.id {
-                        output += &format!("  \"{}{}\" -> \"{}\" [label = \"{}\"];\n", prefix, id, target_id, matcher.to_dot_condition());
+                        output += &format!(
+                            "  \"{}{}\" -> \"{}\" [label = \"{}\"];\n",
+                            prefix,
+                            id,
+                            target_id,
+                            matcher.to_dot_condition()
+                        );
                         out_ids.push(id);
                     } else {
-                        output += &format!("  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n", prefix, id, prefix, target_id, matcher.to_dot_condition());
+                        output += &format!(
+                            "  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n",
+                            prefix,
+                            id,
+                            prefix,
+                            target_id,
+                            matcher.to_dot_condition()
+                        );
                     }
 
                     if id != ACCEPT.id {
@@ -276,7 +307,17 @@ impl Machine {
         output += &format!("  node [shape = doublecircle]; {};\n", ACCEPT.id);
         output += "  node [shape = circle];\n";
         output += &self.list_symbols(self.initial, "", &mut used).0;
-        output += &self.states.iter().map(|(id, _)| if !used.contains(id) { format!("{} ", id) } else { "".to_string() }).collect::<String>();
+        output += &self
+            .states
+            .keys()
+            .map(|id| {
+                if !used.contains(id) {
+                    format!("{} ", id)
+                } else {
+                    "".to_string()
+                }
+            })
+            .collect::<String>();
         output += "}\n";
         output
     }
@@ -295,7 +336,7 @@ pub fn optimize(machine: &mut Machine) {
             continue;
         }
         if let (Matcher::Epsilon, new_id) = machine.states[id].transitions[0] {
-            for (_, state) in &mut machine.states {
+            for state in &mut machine.states.values_mut() {
                 for (_, old_id) in &mut state.transitions {
                     if old_id == id {
                         *old_id = new_id;
@@ -325,8 +366,18 @@ pub fn optimize(machine: &mut Machine) {
             }
         }
         let mut iter = remove_ids.iter();
-        machine.states.get_mut(&id).expect("internal error").transitions.retain(|_| *iter.next().unwrap());
-        machine.states.get_mut(&id).expect("internal error").transitions.append(&mut new_transitions);
+        machine
+            .states
+            .get_mut(id)
+            .expect("internal error")
+            .transitions
+            .retain(|_| *iter.next().expect("internal error"));
+        machine
+            .states
+            .get_mut(id)
+            .expect("internal error")
+            .transitions
+            .append(&mut new_transitions);
     }
 
     // clean up unused states

@@ -146,7 +146,7 @@ impl PeekableStringIterator {
             if c != '\n' {
                 let last_line_start = content.rfind('\n').map(|p| p + 1).unwrap_or(0);
                 let line_number = content.chars().filter(|&c| c == '\n').count() + 1;
-                line_numbers.insert(last_line_start, (content.bytes().count(), line_number));
+                line_numbers.insert(last_line_start, (content.len(), line_number));
             }
         }
 

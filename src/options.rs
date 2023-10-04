@@ -3,12 +3,12 @@
 use crate::argparse::{parse_args, Arg, ArgRef};
 use lazy_static::lazy_static;
 use log::warn;
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
-use regex::Regex;
 
 /// Parsed options.
 #[derive(Clone, Debug)]
@@ -17,6 +17,8 @@ pub struct Options {
     pub paths: Vec<OsString>,
     /// Query string.
     pub query: String,
+    /// Only use paths matching this regex.
+    pub only_files_matching: Option<Regex>,
     /// Ignore paths matching this regex.
     pub ignore_files_matching: Option<Regex>,
 
@@ -45,6 +47,7 @@ enum OptionCommand {
     AddMultiComment(String, String),
     RemoveMultiComment(String, String),
     Language(String),
+    OnlyFilesMatching(Regex),
     IgnoreFilesMatching(Regex),
     OnlyMatching,
     DumpMachine,
@@ -92,6 +95,7 @@ impl Default for Options {
         Options {
             paths: Vec::new(),
             query: "".to_string(),
+            only_files_matching: None,
             ignore_files_matching: None,
             string_characters: ["\"", "'", "`"].iter().map(|s| s.to_string()).collect(),
             single_line_comments: ["//"].iter().map(|s| s.to_string()).collect(),
@@ -132,6 +136,7 @@ Options:
   -m, --[no-]multi BEGIN END    Add or remove (BEGIN, END) from multi-line
                                 comments
 
+  --only-files-matching REGEX   Only scan files matching REGEX
   --ignore-files-matching REGEX Don't scan files matching REGEX
   -o, --only-matching           Print only the matched parts
   --options                     Print what options would have been used to
@@ -272,6 +277,21 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                 }
             }
 
+            ArgRef::Long("only-files-matching") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    let s = arg.to_string_lossy().to_string();
+                    match Regex::new(&s) {
+                        Ok(r) => OptionCommand::OnlyFilesMatching(r),
+                        Err(e) => {
+                            println!("Invalid regex argument for --only-files-matching: {}", e);
+                            print_help(false, 1)
+                        }
+                    }
+                } else {
+                    println!("Missing argument for --only-files-matching");
+                    print_help(false, 1)
+                }
+            }
             ArgRef::Long("ignore-files-matching") => {
                 if let Some(arg) = get_whole_arg(&mut arg_iter) {
                     let s = arg.to_string_lossy().to_string();
@@ -378,6 +398,9 @@ impl Options {
                 }
                 OptionCommand::RemoveMultiComment(start, end) => {
                     opts.multi_line_comments.remove(&(start, end));
+                }
+                OptionCommand::OnlyFilesMatching(regex) => {
+                    opts.only_files_matching = Some(regex);
                 }
                 OptionCommand::IgnoreFilesMatching(regex) => {
                     opts.ignore_files_matching = Some(regex);

@@ -30,6 +30,10 @@ pub struct Options {
     pub single_line_comments: HashSet<String>,
     /// Set of strings which start and end a multi-line comment (eg. ("/*", "*/")).
     pub multi_line_comments: HashSet<(String, String)>,
+    /// Regex to match first letter of an identifier
+    pub identifier_regex_start: Regex,
+    /// Regex to match non-first letters of an identifier
+    pub identifier_regex_continue: Regex,
     /// Parse '..' as a range.
     pub ranges: bool,
 
@@ -51,6 +55,7 @@ enum OptionCommand {
     AddMultiComment(String, String),
     RemoveMultiComment(String, String),
     Language(String),
+    Identifier(Regex, Regex),
     OnlyFilesMatching(Regex),
     IgnoreFilesMatching(Regex),
     OnlyMatching,
@@ -60,7 +65,8 @@ enum OptionCommand {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-struct Defaults {
+struct BuiltinLanguageDefaults {
+    identifier: Option<Vec<String>>,
     extensions: Vec<String>,
     strings: Vec<String>,
     single_comments: Vec<String>,
@@ -70,19 +76,26 @@ struct Defaults {
 const BUILTIN_DATABASE: &str = include_str!("../config.json");
 
 lazy_static! {
-    static ref PARSED_DB: HashMap<String, Defaults> = serde_json::from_str(BUILTIN_DATABASE)
+    static ref DEFAULT_IDENTIFIER_REGEX: [Regex; 2] = [
+        Regex::new("[\\p{ID_Start}_]").expect("internal error"),
+        Regex::new("\\p{ID_Continue}").expect("internal error"),
+    ];
+    static ref PARSED_DB: HashMap<String, BuiltinLanguageDefaults> = serde_json::from_str(BUILTIN_DATABASE)
         .unwrap_or_else(|e| {
             warn!("Built-in JSON database has a syntax error: {}", e);
             HashMap::new()
         });
     static ref EXTENSION_TO_SETTINGS: HashMap<String, Options> = {
         let mut res = HashMap::new();
+        let empty_vec = vec![];
 
         for ty in PARSED_DB.values() {
             let opts = Options {
                 string_characters: ty.strings.iter().cloned().collect(),
                 single_line_comments: ty.single_comments.iter().cloned().collect(),
                 multi_line_comments: ty.multi_comments.iter().cloned().collect(),
+                identifier_regex_start: ty.identifier.as_ref().unwrap_or(&empty_vec).get(0).map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database")).unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[0].clone()),
+                identifier_regex_continue: ty.identifier.as_ref().unwrap_or(&empty_vec).get(1).map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database")).unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[1].clone()),
                 ..Options::default()
             };
 
@@ -108,6 +121,8 @@ impl Default for Options {
                 .iter()
                 .map(|(from, to)| (from.to_string(), to.to_string()))
                 .collect(),
+            identifier_regex_start: Regex::new("[a-zA-Z_]").expect("internal error"),
+            identifier_regex_continue: Regex::new("[a-zA-Z0-9_]").expect("internal error"),
             ranges: true,
 
             only_matching: false,
@@ -137,6 +152,7 @@ Options:
   --lang LANGUAGE               Force defaults for LANGUAGE. Call 'syns --lang'
                                 to display available languages.
 
+  -i, --identifier REGEX        Match identifiers using REGEX
   -s, --[no-]string CHARS       Add or remove CHARS from string delimiters
   -c, --[no-]comment CHARS      Add or remove CHARS from single-line comments
   -m, --[no-]multi BEGIN END    Add or remove (BEGIN, END) from multi-line
@@ -217,6 +233,28 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                 }
             }
 
+            ArgRef::Short('i') | ArgRef::Long("identifier") => {
+                if let Some(start) = get_whole_arg(&mut arg_iter) {
+                    if let Some(cont) = get_whole_arg(&mut arg_iter) {
+                        let start = start.to_string_lossy().to_string();
+                        let cont = cont.to_string_lossy().to_string();
+
+                        match (Regex::new(&start), Regex::new(&cont)) {
+                            (Ok(r1), Ok(r2)) => OptionCommand::Identifier(r1, r2),
+                            (Err(e), _) | (_, Err(e)) => {
+                                println!("Invalid regex argument for --identifier: {}", e);
+                                print_help(false, 1)
+                            }
+                        }
+                    } else {
+                        println!("Missing second argument for --identifier");
+                        print_help(false, 1)
+                    }
+                } else {
+                    println!("Missing argument for --identifier");
+                    print_help(false, 1)
+                }
+            }
             ArgRef::Short('s') | ArgRef::Long("string") => {
                 if let Some(arg) = get_whole_arg(&mut arg_iter) {
                     OptionCommand::AddStringCharacter(arg.to_string_lossy().to_string())
@@ -415,6 +453,10 @@ impl Options {
                 OptionCommand::IgnoreFilesMatching(regex) => {
                     opts.ignore_files_matching = Some(regex);
                 }
+                OptionCommand::Identifier(start, cont) => {
+                    opts.identifier_regex_start = start;
+                    opts.identifier_regex_continue = cont;
+                }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
@@ -487,6 +529,6 @@ mod tests {
 
     #[test]
     fn builtin_json_is_valid() {
-        serde_json::from_str::<HashMap<String, Defaults>>(BUILTIN_DATABASE).unwrap();
+        serde_json::from_str::<HashMap<String, BuiltinLanguageDefaults>>(BUILTIN_DATABASE).unwrap();
     }
 }

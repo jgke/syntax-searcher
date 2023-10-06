@@ -168,7 +168,7 @@ pub fn tokenize_recur(
                 had_whitespace = true;
                 continue;
             }
-            'a'..='z' | 'A'..='Z' | '_' => read_identifier(iter),
+            c if options.identifier_regex_start.is_match(&c.to_string()) => read_identifier(iter, options),
             '0'..='9' => read_number(iter, options),
             c if options.is_open_paren(&c.to_string()) || options.is_close_paren(&c.to_string()) => {
                 res.push(read_paren(iter));
@@ -307,8 +307,16 @@ fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
     }
 }
 
-fn read_identifier(iter: &mut PeekableStringIterator) -> QueryToken {
-    let (content, span) = iter.collect_while(|c| c.is_ascii_alphanumeric() || c == '_');
+fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
+    let mut first = true;
+    let (content, span) = iter.collect_while(|c| {
+        if first {
+            first = false;
+            options.identifier_regex_start.is_match(&c.to_string())
+        } else {
+            options.identifier_regex_continue.is_match(&c.to_string())
+        }
+    });
 
     QueryToken {
         ty: QueryTokenType::Standard(StandardTokenType::Identifier(content)),

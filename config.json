@@ -1,77 +1,96 @@
 {
     "c": {
+        "identifier": ["[a-zA-Z_]", "[a-zA-Z0-9_]"],
         "extensions": ["c", "cpp", "h", "hpp"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },
-    "c#": {
-        "extensions": ["cs"],
-        "strings": ["\"", "'"],
-        "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
-    },
     "clojure": {
+        "identifier": ["[a-zA-Z0-9*+!_'?<>=-]", "[a-zA-Z0-9*+!_'?<>=-]"],
         "extensions": ["clj", "cljc", "cljs", "edn"],
         "strings": ["\""],
         "single_comments": [";"],
         "multi_comments": []
     },
+    "csharp": {
+        "identifier": ["[@\\p{Alphabetic}]", "[\\w]"],
+        "extensions": ["cs"],
+        "strings": ["\"", "'"],
+        "single_comments": ["//"],
+        "multi_comments": [["/*", "*/"]]
+    },
     "elixir": {
+        "identifier": [
+            "[\\p{L}\\p{Nl}\\p{Other_ID_Start}--\\p{Pattern_Syntax}--\\p{Pattern_White_Space}]",
+            "[\\p{ID_Start}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}\\p{Other_ID_Continue}--\\p{Pattern_Syntax}--\\p{Pattern_White_Space}]|[?!]"
+        ],
         "extensions": ["ex", "exs"],
         "strings": ["\"", "'"],
         "single_comments": ["#"],
         "multi_comments": []
     },
     "haskell": {
+        "identifier": [
+            "[\\p{Alphabetic}!#$%&*+./<=>?@\\\\^|~:_-]",
+            "[\\p{Alphabetic}\\d!#$%&*+./<=>?@\\\\^|~:_-]"
+        ],
         "extensions": ["hs"],
         "strings": ["\"", "'"],
         "single_comments": ["--"],
         "multi_comments": [["{-", "-}"]]
     },
     "java": {
+        "identifier": ["[@\\p{Alphabetic}_$]", "[\\w$]"],
         "extensions": ["java"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },
     "javascript": {
+        "identifier": ["[\\p{Alphabetic}_$]", "[\\w$]"],
         "extensions": ["js", "ts", "jsx", "tsx"],
         "strings": ["\"", "'", "`"],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },
     "plain": {
+        "identifier": ["\\p{Alphabetic}", "\\w"],
         "extensions": ["txt"],
         "strings": [],
         "single_comments": [],
         "multi_comments": []
     },
     "php": {
+        "identifier": ["[\\p{L}\\p{Nl}]", "[\\p{ID_Continue}]"],
         "extensions": ["php"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },
     "sql": {
+        "identifier": ["[\\p{Alphabetic}]", "[\\w$]"],
         "extensions": ["sql"],
         "strings": ["'"],
         "single_comments": ["--"],
         "multi_comments": [["/*", "*/"]]
     },
     "python": {
+        "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],
         "extensions": ["py"],
         "strings": ["\"", "'"],
         "single_comments": ["#"],
         "multi_comments": []
     },
     "rust": {
+        "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],
         "extensions": ["rs"],
         "strings": ["\""],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]]
     },
     "visualbasic": {
+        "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],
         "extensions": ["vb"],
         "strings": ["\""],
         "single_comments": ["'"],

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use test_generator::test_resources;
 
-// for f in test-files/hello/*; do syns --no-color -o '\.' $f > tests/fixtures/nocolor/$(basename $f); done
+// for f in test-files/hello/*; do syns --no-color -o '\.' $f > tests/.fixtures/nocolor/$(basename $f); done
 #[test_resources("test-files/hello/*")]
 fn hello_world_langs_nocolor(file: &str) {
     let mut cmd = Command::cargo_bin("syns").unwrap();
@@ -12,7 +12,7 @@ fn hello_world_langs_nocolor(file: &str) {
 
     let filename = file.split('/').last().unwrap();
     let mut expected_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    expected_output_path.push("tests/fixtures/nocolor");
+    expected_output_path.push("tests/.fixtures/nocolor");
     expected_output_path.push(&filename);
 
     let expected_output = std::fs::read(expected_output_path).unwrap();
@@ -22,7 +22,7 @@ fn hello_world_langs_nocolor(file: &str) {
         .stdout(expected_output);
 }
 
-// for f in test-files/hello/*; do syns --color '\.' $f > tests/fixtures/color/$(basename $f); done
+// for f in test-files/hello/*; do syns --color '\.' $f > tests/.fixtures/color/$(basename $f); done
 #[test_resources("test-files/hello/*")]
 fn hello_world_langs_color(file: &str) {
     let mut cmd = Command::cargo_bin("syns").unwrap();
@@ -30,7 +30,7 @@ fn hello_world_langs_color(file: &str) {
 
     let filename = file.split('/').last().unwrap();
     let mut expected_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    expected_output_path.push("tests/fixtures/color");
+    expected_output_path.push("tests/.fixtures/color");
     expected_output_path.push(&filename);
 
     let expected_output = std::fs::read(expected_output_path).unwrap();

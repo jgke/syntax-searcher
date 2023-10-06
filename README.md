@@ -54,7 +54,9 @@ More examples
 - Search for SQL injections in most languages: `syns '\"INSERT.*" +'`
 - Search for a specific struct definition: `syns 'struct Span { }'`
 - Search for all struct definitions: `syns 'struct \. { }'`
-- Find all calls to `printf` with more than one argument, where the format string starts with "Hello": `syns 'printf(\"Hello.*" \.\+)'`
+- Find all calls to `printf` with at least one argument: `syns 'printf(\.)'`
+- Find all calls to `printf` with exactly one argument: `syns 'printf(\.\$)'`
+- Find all calls to `printf` with more than one argument, where the format string starts with "Hello": `syns 'printf(\"Hello.*" \.)'`
 
 Options
 =======

@@ -22,7 +22,6 @@ macro_rules! writeln_colored {
     };}
 }
 
-
 #[cfg(not(tarpaulin_include))]
 /// Parse `file` with `options` and print all matches.
 pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) -> bool {
@@ -35,9 +34,12 @@ pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, fi
     let match_fg_color: Color = Color::Red;
 
     let reset_spec = ColorSpec::new();
-    let mut path_spec = ColorSpec::new(); path_spec.set_fg(Some(path_style));
-    let mut line_number_spec = ColorSpec::new(); line_number_spec.set_fg(Some(line_number_style));
-    let mut match_spec = ColorSpec::new(); match_spec.set_fg(Some(match_fg_color)).set_bold(true);
+    let mut path_spec = ColorSpec::new();
+    path_spec.set_fg(Some(path_style));
+    let mut line_number_spec = ColorSpec::new();
+    line_number_spec.set_fg(Some(line_number_style));
+    let mut match_spec = ColorSpec::new();
+    match_spec.set_fg(Some(match_fg_color)).set_bold(true);
 
     let mut stdout = StandardStream::stdout(options.color);
     debug!("Parsing file");

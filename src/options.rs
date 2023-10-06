@@ -1,6 +1,7 @@
 //! Options parsing and handling.
 
 use crate::argparse::{parse_args, Arg, ArgRef};
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::warn;
 use regex::Regex;
@@ -10,7 +11,6 @@ use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
 use termcolor::ColorChoice;
-use itertools::Itertools;
 
 /// Parsed options.
 #[derive(Clone, Debug)]
@@ -80,8 +80,8 @@ lazy_static! {
         Regex::new("[\\p{ID_Start}_]").expect("internal error"),
         Regex::new("\\p{ID_Continue}").expect("internal error"),
     ];
-    static ref PARSED_DB: HashMap<String, BuiltinLanguageDefaults> = serde_json::from_str(BUILTIN_DATABASE)
-        .unwrap_or_else(|e| {
+    static ref PARSED_DB: HashMap<String, BuiltinLanguageDefaults> =
+        serde_json::from_str(BUILTIN_DATABASE).unwrap_or_else(|e| {
             warn!("Built-in JSON database has a syntax error: {}", e);
             HashMap::new()
         });
@@ -94,8 +94,20 @@ lazy_static! {
                 string_characters: ty.strings.iter().cloned().collect(),
                 single_line_comments: ty.single_comments.iter().cloned().collect(),
                 multi_line_comments: ty.multi_comments.iter().cloned().collect(),
-                identifier_regex_start: ty.identifier.as_ref().unwrap_or(&empty_vec).get(0).map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database")).unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[0].clone()),
-                identifier_regex_continue: ty.identifier.as_ref().unwrap_or(&empty_vec).get(1).map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database")).unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[1].clone()),
+                identifier_regex_start: ty
+                    .identifier
+                    .as_ref()
+                    .unwrap_or(&empty_vec)
+                    .get(0)
+                    .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
+                    .unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[0].clone()),
+                identifier_regex_continue: ty
+                    .identifier
+                    .as_ref()
+                    .unwrap_or(&empty_vec)
+                    .get(1)
+                    .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
+                    .unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[1].clone()),
                 ..Options::default()
             };
 
@@ -173,7 +185,7 @@ Options:
 
 fn print_langs() -> ! {
     println!("Available languages:");
-    for (lang, defs) in PARSED_DB.iter().sorted_by(|(k1, _), (k2, _)| k1.cmp(k2)){
+    for (lang, defs) in PARSED_DB.iter().sorted_by(|(k1, _), (k2, _)| k1.cmp(k2)) {
         println!("- {} [{}]", lang, defs.extensions.join(", "));
     }
     std::process::exit(0)

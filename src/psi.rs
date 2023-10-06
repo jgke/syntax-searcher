@@ -309,31 +309,33 @@ impl PeekableStringIterator {
     pub fn get_lines_including(&self, span: Span) -> (String, Vec<String>, String) {
         let (start_index, end_index) = self.get_span_indices(span);
 
-        let head = self.iter
+        let head = self
+            .iter
             .content()
-            .chars()
+            .bytes()
             .skip(start_index)
             .take(span.lo - start_index)
-            .collect();
+            .collect::<Vec<_>>();
 
-        let tail = self.iter
+        let tail = self
+            .iter
             .content()
-            .chars()
+            .bytes()
             .skip(span.hi + 1)
             .take(end_index - (span.hi + 1))
-            .collect();
+            .collect::<Vec<_>>();
 
-        let content = self.iter
-            .content()
-            .chars()
-            .skip(span.lo)
-            .take(span.hi - span.lo + 1)
-            .collect::<String>()
+        let content = self
+            .get_content_between(span)
             .lines()
             .map(|s| s.to_string())
             .collect();
 
-        (head, content, tail)
+        (
+            String::from_utf8_lossy(&head).to_string(),
+            content,
+            String::from_utf8_lossy(&tail).to_string(),
+        )
     }
 }
 

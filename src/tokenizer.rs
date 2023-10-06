@@ -168,14 +168,18 @@ pub fn tokenize_recur(
                 had_whitespace = true;
                 continue;
             }
-            c if options.identifier_regex_start.is_match(&c.to_string()) => read_identifier(iter, options),
+            c if options.identifier_regex_start.is_match(&c.to_string()) => {
+                read_identifier(iter, options)
+            }
             '0'..='9' => read_number(iter, options),
-            c if options.is_open_paren(&c.to_string()) || options.is_close_paren(&c.to_string()) => {
+            c if options.is_open_paren(&c.to_string())
+                || options.is_close_paren(&c.to_string()) =>
+            {
                 res.push(read_paren(iter));
                 had_whitespace = true;
                 continue;
             }
-            _ => read_other(&mut res, had_whitespace, iter)
+            _ => read_other(&mut res, had_whitespace, iter),
         };
         had_whitespace = false;
         res.push(token);
@@ -326,24 +330,27 @@ fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> Quer
 
 fn read_paren(iter: &mut PeekableStringIterator) -> QueryToken {
     match iter.next_new_span() {
-        Some(c) => {
-            QueryToken {
-                ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
-                span: iter.current_span(),
-            }
-        }
+        Some(c) => QueryToken {
+            ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
+            span: iter.current_span(),
+        },
         None => panic!("Unexpected end of file"),
     }
 }
 
-fn read_other(res: &mut Vec<QueryToken>, had_whitespace: bool, iter: &mut PeekableStringIterator) -> QueryToken {
+fn read_other(
+    res: &mut Vec<QueryToken>,
+    had_whitespace: bool,
+    iter: &mut PeekableStringIterator,
+) -> QueryToken {
     match iter.next_new_span() {
         Some(c) => {
             if !had_whitespace {
                 if let Some(QueryToken {
                     ty: QueryTokenType::Standard(StandardTokenType::Symbol(old_c)),
-                    span
-                }) = res.last() {
+                    span,
+                }) = res.last()
+                {
                     let new_symbol = format!("{}{}", old_c, c);
                     let new_span = span.merge(&iter.current_span());
                     res.pop();
@@ -509,8 +516,8 @@ mod tests {
         test(
             "+ +",
             vec![
-            t(StandardTokenType::Symbol("+".to_string()), 0, 0),
-            t(StandardTokenType::Symbol("+".to_string()), 2, 2)
+                t(StandardTokenType::Symbol("+".to_string()), 0, 0),
+                t(StandardTokenType::Symbol("+".to_string()), 2, 2),
             ],
         );
     }

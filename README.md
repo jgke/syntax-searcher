@@ -103,11 +103,6 @@ Testing
 Unimplemented features
 ======================
 
-- Highlighting
-    - ...if possible
-    - `{ \. \* \[Viewport\] = `
-- Proper newline handling
-- More language-specific defaults
 - More parsing strategies
     - Strings:
         - Support for strings with various prefixes, eg. Python's `f`
@@ -116,13 +111,7 @@ Unimplemented features
         - Support for more number literals
         - Clojure/Ruby keyword literal
         - Arbitrary number suffixes (eg. CSS: 15px)
-- Replacing strings?
-- CLI improvements
-    - Fine-tune output
-    - JSON output
-- File type filters
-    - In a folder with multiple languages, one probably wants to search only
-      certain types of files
+- JSON output
 
 Comparison to other software
 ============================

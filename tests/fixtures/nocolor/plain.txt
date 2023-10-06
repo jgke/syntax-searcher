@@ -1,0 +1,3 @@
+[test-files/hello/plain.txt:1] Hello
+[test-files/hello/plain.txt:1] world
+[test-files/hello/plain.txt:1] !

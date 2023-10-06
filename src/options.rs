@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::iter::Peekable;
 use termcolor::ColorChoice;
+use itertools::Itertools;
 
 /// Parsed options.
 #[derive(Clone, Debug)]
@@ -156,7 +157,7 @@ Options:
 
 fn print_langs() -> ! {
     println!("Available languages:");
-    for (lang, defs) in PARSED_DB.iter() {
+    for (lang, defs) in PARSED_DB.iter().sorted_by(|(k1, _), (k2, _)| k1.cmp(k2)){
         println!("- {} [{}]", lang, defs.extensions.join(", "));
     }
     std::process::exit(0)

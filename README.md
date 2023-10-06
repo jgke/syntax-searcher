@@ -56,19 +56,23 @@ More examples
 
 Options
 =======
-| Flag | Description |
-| --- | --- |
-| `-h, --help` | Display help |
-| `--lang LANGUAGE` | Use the defaults for LANGUAGE. Call `syns --lang` to display available presets. |
-| `-s, --[no-]string CHARS` | Add or remove CHARS from string delimiters |
-| `-c, --[no-]comment CHARS` | Add or remove CHARS from single-line comments |
-| `-m, --[no-]multi BEGIN END` | Add or remove (BEGIN, END) from multi-line comments |
-| `-o, --only-matching` | Print only the matched parts. |
-| `--options` | Print what options would be used for parsing and quit. |
+| Flag                            | Description                                                                       |
+|---------------------------------|-----------------------------------------------------------------------------------|
+| `-h, --help`                    | Display help                                                                      |
+| `--lang LANGUAGE`               | Use the defaults for LANGUAGE. Call `syns --lang` to display available presets.   |
+| `--[no-]color`                  | Enable or disable colored text output                                             |                                            |
+| `-i, --identifier START CONT`   | Match identifiers using START regex for the first character and CONT for the rest |
+| `-s, --[no-]string CHARS`       | Add or remove CHARS from string delimiters                                        |
+| `-c, --[no-]comment CHARS`      | Add or remove CHARS from single-line comments                                     |
+| `-m, --[no-]multi BEGIN END`    | Add or remove (BEGIN, END) from multi-line comments                               |
+| `-o, --only-matching`           | Print only the matched parts.                                                     |
+| `--only-files-matching REGEX`   | Only scan files matching REGEX                                                    |
+| `--ignore-files-matching REGEX` | Don't scan files matching REGEX                                                   |
+| `--options`                     | Print what options would be used for parsing and quit.                            |
 
 The default options will parse JavaScript. They are currently equivalent to
 ```
-syns --lang plain -s '"' -s "'" -s '`' -c '//' -m '/*' '*/'
+syns --lang plain -i '[\p{ID_Start}_]' '\p{ID_Continue}' -s '"' -s "'" -s '`' -c '//' -m '/*' '*/'
 ```
 
 If you want to parse a language which doesn't use `'` for strings (like Clojure
@@ -83,17 +87,17 @@ Query language
 The query language is parsed with the same options as the source file. Query patterns
 can be matched using backslash. The following commands are available:
 
-| Pattern | Description |
-| --- | --- |
-| `foo` | Match an identifier `foo` |
-| `foo bar` | Match an identifier `foo`, followed by whitespace and/or comments, and identifier `bar` |
-| `\.` | Match any token or paren-delimited tree. |
-| `\+` | Match the previous pattern one or more times. |
-| `\*` | Match the previous pattern zero or more times. |
-| `\"regex"` | Match any string literal with the regex pattern `regex`. |
-| `\(pattern\)` | Group several patterns. Useful for eg. `\(a a\)\+`. |
-| `\$` | Match the end of a block. |
-| `p1 p2 \| p3 p4 \| p5 p6` | Match p1 and p2, p3 and p4 OR p5 and p6. |
+| Pattern                   | Description                                                                             |
+|---------------------------|-----------------------------------------------------------------------------------------|
+| `foo`                     | Match an identifier `foo`                                                               |
+| `foo bar`                 | Match an identifier `foo`, followed by whitespace and/or comments, and identifier `bar` |
+| `\.`                      | Match any token or paren-delimited tree.                                                |
+| `\+`                      | Match the previous pattern one or more times.                                           |
+| `\*`                      | Match the previous pattern zero or more times.                                          |
+| `\"regex"`                | Match any string literal with the regex pattern `regex`.                                |
+| `\(pattern\)`             | Group several patterns. Useful for eg. `\(a a\)\+`.                                     |
+| `\$`                      | Match the end of a block.                                                               |
+| `p1 p2 \| p3 p4 \| p5 p6` | Match p1 and p2, p3 and p4 OR p5 and p6.                                                |
 
 Testing
 =======

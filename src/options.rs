@@ -163,8 +163,10 @@ Options:
   -h, --help                    Display this message
   --lang LANGUAGE               Force defaults for LANGUAGE. Call 'syns --lang'
                                 to display available languages.
+  --[no-]color                  Enable or disable color output
 
-  -i, --identifier REGEX        Match identifiers using REGEX
+  -i, --identifier START END    Match identifiers using START regex for the
+                                first character and CONT for the rest
   -s, --[no-]string CHARS       Add or remove CHARS from string delimiters
   -c, --[no-]comment CHARS      Add or remove CHARS from single-line comments
   -m, --[no-]multi BEGIN END    Add or remove (BEGIN, END) from multi-line
@@ -175,7 +177,6 @@ Options:
   -o, --only-matching           Print only the matched parts
   --options                     Print what options would have been used to
                                 parse FILE
-  --[no-]color                  Enable or disable color output
 "#,
             filename
         );

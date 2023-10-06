@@ -3,6 +3,8 @@ Syntax-searcher
 
 Language-independent command-line utility for syntax-aware pattern matching.
 
+![Screenshot showing an example query and output.](doc/screenshot.png)
+
 - Language-independent, works for most languages
 - Simple regex-like search patterns
 - Easily search things like
@@ -103,6 +105,14 @@ Testing
 =======
 
 1) `cargo test`
+
+Currently supported languages
+=============================
+
+`syns` has built-in default rules for the following languages: C / C++,
+Clojure, C#, Elixir, Haskell, Java, Javascript, PHP, Python, Rust, SQL and
+Visual Basic. Other languages will probably work somewhat well with the default
+settings, so `syns` can be used out-of-the-box with other languages as well.
 
 Unimplemented features
 ======================

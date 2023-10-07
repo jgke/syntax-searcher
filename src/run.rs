@@ -212,6 +212,43 @@ mod tests {
     }
 
     #[test]
+    fn test_do_end_parens() {
+        let res = run_all(
+            Options::new(
+                "js".as_ref(),
+                &["syns", "do foo end", "-b", "do", "end", "-"],
+            ),
+            "do foo end".as_bytes(),
+        );
+        assert_eq!(res.len(), 1);
+        assert_eq!(res[0].t.len(), 1);
+        match &res[0].t[0] {
+            Ast::Delimited {
+                op:
+                    StandardToken {
+                        ty: StandardTokenType::Symbol(start),
+                        span: Span { lo: 0, hi: 1 },
+                    },
+                cp:
+                    Some(StandardToken {
+                        ty: StandardTokenType::Symbol(end),
+                        span: Span { lo: 7, hi: 9 },
+                    }),
+                content,
+            } => {
+                assert_eq!(start, "do");
+                assert_eq!(end, "end");
+                assert_eq!(content.len(), 1);
+                assert!(matches!(&content[0], Ast::Token(StandardToken {
+                    ty: StandardTokenType::Identifier(ident),
+                    span: Span { lo: 3, hi: 5 }
+                }) if ident == "foo"));
+            }
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
     fn test_or() {
         assert_eq!(
             run_strs("a c d \\| c \\(a a\\) b\\+", "a c c b b"),

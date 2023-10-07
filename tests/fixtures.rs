@@ -1,5 +1,4 @@
 use assert_cmd::prelude::*;
-use predicates::prelude::*;
 use std::path::PathBuf;
 use std::process::Command;
 use test_generator::test_resources;
@@ -17,9 +16,7 @@ fn hello_world_langs_nocolor(file: &str) {
 
     let expected_output = std::fs::read(expected_output_path).unwrap();
 
-    cmd.assert()
-        .code(0)
-        .stdout(expected_output);
+    cmd.assert().code(0).stdout(expected_output);
 }
 
 // for f in test-files/hello/*; do syns --color '\.' $f > tests/.fixtures/color/$(basename $f); done
@@ -35,8 +32,5 @@ fn hello_world_langs_color(file: &str) {
 
     let expected_output = std::fs::read(expected_output_path).unwrap();
 
-    cmd.assert()
-        .code(0)
-        .stdout(expected_output);
+    cmd.assert().code(0).stdout(expected_output);
 }
-

@@ -60,23 +60,34 @@ More examples
 
 Options
 =======
+
+General options:
+
 | Flag                            | Description                                                                       |
 |---------------------------------|-----------------------------------------------------------------------------------|
 | `-h, --help`                    | Display help                                                                      |
 | `--lang LANGUAGE`               | Use the defaults for LANGUAGE. Call `syns --lang` to display available presets.   |
-| `--[no-]color`                  | Enable or disable colored text output                                             |                                            |
+| `--[no-]color`                  | Enable or disable colored text output                                             |
+| `-o, --only-matching`           | Print only the matched parts.                                                     |
+| `--only-files-matching REGEX`   | Only scan files matching REGEX                                                    |
+| `--ignore-files-matching REGEX` | Don't scan files matching REGEX                                                   |
+
+Parsing options:
+
+| Flag                            | Description                                                                       |
+|---------------------------------|-----------------------------------------------------------------------------------|
 | `-i, --identifier START CONT`   | Match identifiers using START regex for the first character and CONT for the rest |
 | `-s, --[no-]string CHARS`       | Add or remove CHARS from string delimiters                                        |
 | `-c, --[no-]comment CHARS`      | Add or remove CHARS from single-line comments                                     |
 | `-m, --[no-]multi BEGIN END`    | Add or remove (BEGIN, END) from multi-line comments                               |
-| `-o, --only-matching`           | Print only the matched parts.                                                     |
-| `--only-files-matching REGEX`   | Only scan files matching REGEX                                                    |
-| `--ignore-files-matching REGEX` | Don't scan files matching REGEX                                                   |
+| `-b, --block BEGIN END`         | Add (BEGIN, END) to list of block separators                                      |
+| `--no-block-begin BEGIN`        | Remove BEGIN from list of block openers                                           |
+| `--no-block-end END`            | Remove END from list of block closers                                             |
 | `--options`                     | Print what options would be used for parsing and quit.                            |
 
 The default options will parse JavaScript. They are currently equivalent to
 ```
-syns --lang plain -i '[\p{ID_Start}_]' '\p{ID_Continue}' -s '"' -s "'" -s '`' -c '//' -m '/*' '*/'
+syns --lang plain -i '[\p{ID_Start}_]' '\p{ID_Continue}' -s '"' -s "'" -s '`' -c '//' -m '/*' '*/' -b '(' ')' -b '[' ']' -b '{' '}'
 ```
 
 If you want to parse a language which doesn't use `'` for strings (like Clojure
@@ -119,6 +130,7 @@ settings, so `syns` can be used out-of-the-box with other languages as well.
 Unimplemented features
 ======================
 
+- Detect binary files
 - More parsing strategies
     - Strings:
         - Support for strings with various prefixes, eg. Python's `f`

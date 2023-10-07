@@ -30,6 +30,10 @@ pub struct Options {
     pub single_line_comments: HashSet<String>,
     /// Set of strings which start and end a multi-line comment (eg. ("/*", "*/")).
     pub multi_line_comments: HashSet<(String, String)>,
+    /// List of block openers (eg. "(" or "do")
+    pub block_openers: HashSet<String>,
+    /// List of block closers (eg. ")" or "end")
+    pub block_closers: HashSet<String>,
     /// Regex to match first letter of an identifier
     pub identifier_regex_start: Regex,
     /// Regex to match non-first letters of an identifier
@@ -54,6 +58,9 @@ enum OptionCommand {
     RemoveSingleComment(String),
     AddMultiComment(String, String),
     RemoveMultiComment(String, String),
+    AddBlockSeparator(String, String),
+    RemoveBlockOpener(String),
+    RemoveBlockCloser(String),
     Language(String),
     Identifier(Regex, Regex),
     OnlyFilesMatching(Regex),
@@ -66,20 +73,17 @@ enum OptionCommand {
 
 #[derive(Clone, Debug, Deserialize)]
 struct BuiltinLanguageDefaults {
-    identifier: Option<Vec<String>>,
+    identifier: Vec<String>,
     extensions: Vec<String>,
     strings: Vec<String>,
     single_comments: Vec<String>,
     multi_comments: Vec<(String, String)>,
+    blocks: Option<Vec<(String, String)>>, // default () [] {}
 }
 
 const BUILTIN_DATABASE: &str = include_str!("../config.json");
 
 lazy_static! {
-    static ref DEFAULT_IDENTIFIER_REGEX: [Regex; 2] = [
-        Regex::new("[\\p{ID_Start}_]").expect("internal error"),
-        Regex::new("\\p{ID_Continue}").expect("internal error"),
-    ];
     static ref PARSED_DB: HashMap<String, BuiltinLanguageDefaults> =
         serde_json::from_str(BUILTIN_DATABASE).unwrap_or_else(|e| {
             warn!("Built-in JSON database has a syntax error: {}", e);
@@ -87,27 +91,33 @@ lazy_static! {
         });
     static ref EXTENSION_TO_SETTINGS: HashMap<String, Options> = {
         let mut res = HashMap::new();
-        let empty_vec = vec![];
+        let default_opts = Options::default();
 
         for ty in PARSED_DB.values() {
             let opts = Options {
                 string_characters: ty.strings.iter().cloned().collect(),
                 single_line_comments: ty.single_comments.iter().cloned().collect(),
                 multi_line_comments: ty.multi_comments.iter().cloned().collect(),
+                block_openers: ty
+                    .blocks
+                    .as_ref()
+                    .map(|blocks| blocks.iter().map(|(start, _)| start.clone()).collect())
+                    .unwrap_or_else(|| default_opts.block_openers.clone()),
+                block_closers: ty
+                    .blocks
+                    .as_ref()
+                    .map(|blocks| blocks.iter().map(|(_, end)| end.clone()).collect())
+                    .unwrap_or_else(|| default_opts.block_closers.clone()),
                 identifier_regex_start: ty
                     .identifier
-                    .as_ref()
-                    .unwrap_or(&empty_vec)
                     .get(0)
                     .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
-                    .unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[0].clone()),
+                    .unwrap_or_else(|| default_opts.identifier_regex_start.clone()),
                 identifier_regex_continue: ty
                     .identifier
-                    .as_ref()
-                    .unwrap_or(&empty_vec)
                     .get(1)
                     .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
-                    .unwrap_or_else(|| DEFAULT_IDENTIFIER_REGEX[1].clone()),
+                    .unwrap_or_else(|| default_opts.identifier_regex_continue.clone()),
                 ..Options::default()
             };
 
@@ -133,8 +143,14 @@ impl Default for Options {
                 .iter()
                 .map(|(from, to)| (from.to_string(), to.to_string()))
                 .collect(),
-            identifier_regex_start: Regex::new("[a-zA-Z_]").expect("internal error"),
-            identifier_regex_continue: Regex::new("[a-zA-Z0-9_]").expect("internal error"),
+            block_openers: vec!["(".to_string(), "[".to_string(), "{".to_string()]
+                .into_iter()
+                .collect(),
+            block_closers: vec![")".to_string(), "]".to_string(), "}".to_string()]
+                .into_iter()
+                .collect(),
+            identifier_regex_start: Regex::new("[\\p{ID_Start}_]").expect("internal error"),
+            identifier_regex_continue: Regex::new("\\p{ID_Continue}").expect("internal error"),
             ranges: true,
 
             only_matching: false,
@@ -334,6 +350,40 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
                     print_help(false, 1)
                 }
             }
+            ArgRef::Short('b') | ArgRef::Long("block") => {
+                if let Some(start) = get_whole_arg(&mut arg_iter) {
+                    if let Some(end) = get_whole_arg(&mut arg_iter) {
+                        OptionCommand::AddBlockSeparator(
+                            start.to_string_lossy().to_string(),
+                            end.to_string_lossy().to_string(),
+                        )
+                    } else {
+                        println!("Missing second argument for --block");
+                        print_help(false, 1)
+                    }
+                } else {
+                    println!("Missing argument for --block");
+                    print_help(false, 1)
+                }
+            }
+
+            ArgRef::Long("no-block-opener") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::RemoveBlockOpener(arg.to_string_lossy().to_string())
+                } else {
+                    println!("Missing argument for --no-block-opener");
+                    print_help(false, 1)
+                }
+            }
+
+            ArgRef::Long("no-block-closer") => {
+                if let Some(arg) = get_whole_arg(&mut arg_iter) {
+                    OptionCommand::RemoveBlockCloser(arg.to_string_lossy().to_string())
+                } else {
+                    println!("Missing argument for --no-block-closer");
+                    print_help(false, 1)
+                }
+            }
 
             ArgRef::Long("only-files-matching") => {
                 if let Some(arg) = get_whole_arg(&mut arg_iter) {
@@ -460,6 +510,16 @@ impl Options {
                 OptionCommand::RemoveMultiComment(start, end) => {
                     opts.multi_line_comments.remove(&(start, end));
                 }
+                OptionCommand::AddBlockSeparator(start, end) => {
+                    opts.block_openers.insert(start);
+                    opts.block_closers.insert(end);
+                }
+                OptionCommand::RemoveBlockOpener(start) => {
+                    opts.block_openers.remove(&start);
+                }
+                OptionCommand::RemoveBlockCloser(end) => {
+                    opts.block_closers.remove(&end);
+                }
                 OptionCommand::OnlyFilesMatching(regex) => {
                     opts.only_files_matching = Some(regex);
                 }
@@ -496,7 +556,7 @@ impl Options {
     /// assert!(!options.is_open_paren("}"));
     /// ```
     pub fn is_open_paren(&self, c: &str) -> bool {
-        c == "(" || c == "[" || c == "{"
+        self.block_openers.iter().any(|s| c == s)
     }
 
     /// Is `c` a close paren for the current file type?
@@ -507,7 +567,7 @@ impl Options {
     /// assert!(options.is_close_paren("}"));
     /// ```
     pub fn is_close_paren(&self, c: &str) -> bool {
-        c == ")" || c == "]" || c == "}"
+        self.block_closers.iter().any(|e| c == e)
     }
 }
 

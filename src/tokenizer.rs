@@ -322,9 +322,17 @@ fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> Quer
         }
     });
 
-    QueryToken {
-        ty: QueryTokenType::Standard(StandardTokenType::Identifier(content)),
-        span,
+    if options.is_open_paren(&content) || options.is_close_paren(&content) {
+        /* handle eg. do / end -style "parens" */
+        QueryToken {
+            ty: QueryTokenType::Standard(StandardTokenType::Symbol(content)),
+            span,
+        }
+    } else {
+        QueryToken {
+            ty: QueryTokenType::Standard(StandardTokenType::Identifier(content)),
+            span,
+        }
     }
 }
 

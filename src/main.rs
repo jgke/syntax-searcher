@@ -47,7 +47,7 @@ fn main() -> io::Result<()> {
     // This options is only used for enumerating paths
     let options = Options::new(&txt, &args);
     let default_path = "./".into();
-    let mut walker = WalkBuilder::new(options.paths.get(0).unwrap_or(&default_path));
+    let mut walker = WalkBuilder::new(options.paths.first().unwrap_or(&default_path));
     for path in options.paths.iter().skip(1) {
         walker.add(path);
     }

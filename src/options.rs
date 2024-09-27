@@ -43,6 +43,8 @@ pub struct Options {
 
     /// Print only matching parts of the source code.
     pub only_matching: bool,
+    /// Only print matching files' names rather than actual matches.
+    pub only_print_filenames: bool,
     /// Use colored output.
     pub color: ColorChoice,
 
@@ -66,6 +68,7 @@ enum OptionCommand {
     OnlyFilesMatching(Regex),
     IgnoreFilesMatching(Regex),
     OnlyMatching,
+    OnlyPrintFilenames,
     Color(ColorChoice),
     DumpMachine,
     PrintOptionsAndQuit,
@@ -110,7 +113,7 @@ lazy_static! {
                     .unwrap_or_else(|| default_opts.block_closers.clone()),
                 identifier_regex_start: ty
                     .identifier
-                    .get(0)
+                    .first()
                     .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
                     .unwrap_or_else(|| default_opts.identifier_regex_start.clone()),
                 identifier_regex_continue: ty
@@ -154,6 +157,7 @@ impl Default for Options {
             ranges: true,
 
             only_matching: false,
+            only_print_filenames: false,
             color: ColorChoice::Auto,
             dump_machine: false,
         }
@@ -191,6 +195,7 @@ Options:
   --only-files-matching REGEX   Only scan files matching REGEX
   --ignore-files-matching REGEX Don't scan files matching REGEX
   -o, --only-matching           Print only the matched parts
+  -l, --only-print-filenames    Only print matching files' names
   --options                     Print what options would have been used to
                                 parse FILE
 "#,
@@ -420,6 +425,7 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Long("no-color") => OptionCommand::Color(ColorChoice::Never),
 
             ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
+            ArgRef::Short('l') | ArgRef::Long("only-print-filenames") => OptionCommand::OnlyPrintFilenames,
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
@@ -466,7 +472,7 @@ impl Options {
             print_help(false, 1);
         };
         let query = positionals
-            .get(0)
+            .first()
             .unwrap_or(&empty_osstring)
             .to_string_lossy()
             .to_string();
@@ -531,6 +537,7 @@ impl Options {
                     opts.identifier_regex_continue = cont;
                 }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
+                OptionCommand::OnlyPrintFilenames => opts.only_print_filenames = true,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}

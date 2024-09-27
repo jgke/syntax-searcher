@@ -52,6 +52,10 @@ pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, fi
             continue;
         }
         found_match = true;
+        if options.only_print_filenames {
+            println!("{}", filename.to_string_lossy());
+            break;
+        }
         let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
         let (start, end) = iter.get_line_information(span);
         let line_number = if start == end {

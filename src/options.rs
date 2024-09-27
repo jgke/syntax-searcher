@@ -425,7 +425,9 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Long("no-color") => OptionCommand::Color(ColorChoice::Never),
 
             ArgRef::Short('o') | ArgRef::Long("only-matching") => OptionCommand::OnlyMatching,
-            ArgRef::Short('l') | ArgRef::Long("only-print-filenames") => OptionCommand::OnlyPrintFilenames,
+            ArgRef::Short('l') | ArgRef::Long("only-print-filenames") => {
+                OptionCommand::OnlyPrintFilenames
+            }
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,

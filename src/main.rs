@@ -53,63 +53,62 @@ fn main() -> io::Result<()> {
     }
     let mut retval = 1;
     for f in walker.build() {
-        match {
-            match f {
-                Ok(f) => {
-                    let file_path = std::path::Path::new(f.path());
-                    let lossy_filename = file_path.to_string_lossy();
-                    if let Some(r) = &options.only_files_matching {
-                        if !r.is_match(&lossy_filename) {
-                            info!(
-                                "Ignoring file {} as it didn't match regex '{:?}'",
-                                &lossy_filename, &r
-                            );
-                            continue;
-                        }
-                    }
-                    if let Some(r) = &options.ignore_files_matching {
-                        if r.is_match(&lossy_filename) {
-                            info!(
-                                "Ignoring file {} as it matches regex '{:?}'",
-                                &lossy_filename, &r
-                            );
-                            continue;
-                        }
-                    }
-                    if let Ok(attr) = fs::metadata(file_path) {
-                        if attr.is_dir() {
-                            continue;
-                        }
-                    }
-
-                    info!("Scanning file {}", lossy_filename);
-
-                    let ext = file_path.extension().unwrap_or(&txt).to_owned();
-
-                    let options = opt_cache.entry(ext.clone()).or_insert_with_key(|ext| {
-                        // This options accounts for proper file extensions
-                        let opts = Options::new(ext, &args);
-                        debug!(
-                            "Created new options for extension .{}:  {:#?}",
-                            ext.to_string_lossy(),
-                            opts
+        let res = match f {
+            Ok(f) => {
+                let file_path = std::path::Path::new(f.path());
+                let lossy_filename = file_path.to_string_lossy();
+                if let Some(r) = &options.only_files_matching {
+                    if !r.is_match(&lossy_filename) {
+                        info!(
+                            "Ignoring file {} as it didn't match regex '{:?}'",
+                            &lossy_filename, &r
                         );
-                        opts
-                    });
-                    let query = query_cache
-                        .entry(ext)
-                        .or_insert_with(|| Query::new(options));
-
-                    if options.dump_machine {
-                        println!("{}", query.machine.to_dot_graph());
-                        break;
+                        continue;
                     }
-
-                    run_file(query, options, f)
                 }
-                Err(e) => Err(e.into()),
+                if let Some(r) = &options.ignore_files_matching {
+                    if r.is_match(&lossy_filename) {
+                        info!(
+                            "Ignoring file {} as it matches regex '{:?}'",
+                            &lossy_filename, &r
+                        );
+                        continue;
+                    }
+                }
+                if let Ok(attr) = fs::metadata(file_path) {
+                    if attr.is_dir() {
+                        continue;
+                    }
+                }
+
+                info!("Scanning file {}", lossy_filename);
+
+                let ext = file_path.extension().unwrap_or(&txt).to_owned();
+
+                let options = opt_cache.entry(ext.clone()).or_insert_with_key(|ext| {
+                    // This options accounts for proper file extensions
+                    let opts = Options::new(ext, &args);
+                    debug!(
+                        "Created new options for extension .{}:  {:#?}",
+                        ext.to_string_lossy(),
+                        opts
+                    );
+                    opts
+                });
+                let query = query_cache
+                    .entry(ext)
+                    .or_insert_with(|| Query::new(options));
+
+                if options.dump_machine {
+                    println!("{}", query.machine.to_dot_graph());
+                    break;
+                }
+
+                run_file(query, options, f)
             }
-        } {
+            Err(e) => Err(e.into()),
+        };
+        match res {
             Ok(did_match) => {
                 if retval == 1 && did_match {
                     retval = 0;

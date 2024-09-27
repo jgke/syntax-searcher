@@ -1,8 +1,8 @@
 use assert_cmd::prelude::*; // Add methods on commands
 use predicates::prelude::*; // Used for writing assertions
+use regex::Regex;
 use std::path::PathBuf;
 use std::process::Command; // Run programs
-use regex::Regex;
 
 fn run(path: &str, query: &str) -> Command {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -99,15 +99,12 @@ fn test_not_match_group_end() {
 fn test_multiple_match_multiple_files() {
     let mut cmd = run("test-files", "\"Hello world!\"");
 
-    let value = cmd.assert()
-        .code(0)
-        .get_output()
-        .clone();
-
+    let value = cmd.assert().code(0).get_output().clone();
 
     let r = Regex::new(r"\[.*test-files").unwrap();
     let raw_string = String::from_utf8(value.stdout).unwrap();
-    let lines = raw_string.lines()
+    let lines = raw_string
+        .lines()
         .map(|line| r.replace_all(line, "[test-files").to_string())
         .collect::<Vec<String>>();
 
@@ -125,7 +122,6 @@ fn test_multiple_match_multiple_files() {
 [test-files/hello/rust.rs:2]    println!("Hello world!");
 [test-files/hello/java.java:5]         System.out.println("Hello world!");"#;
 
-
     for line in &lines {
         dbg!(&line);
     }
@@ -142,15 +138,12 @@ fn test_multiple_match_filename_only() {
     let mut cmd = run("test-files", "\"Hello world!\"");
     cmd.arg("-l");
 
-    let value = cmd.assert()
-        .code(0)
-        .get_output()
-        .clone();
-
+    let value = cmd.assert().code(0).get_output().clone();
 
     let r = Regex::new(r".*test-files").unwrap();
     let raw_string = String::from_utf8(value.stdout).unwrap();
-    let lines = raw_string.lines()
+    let lines = raw_string
+        .lines()
         .map(|line| r.replace_all(line, "test-files").to_string())
         .collect::<Vec<String>>();
 
@@ -167,7 +160,6 @@ test-files/hello/python.py
 test-files/hello/clojure.clj
 test-files/hello/rust.rs
 test-files/hello/java.java"#;
-
 
     for line in &lines {
         dbg!(&line);

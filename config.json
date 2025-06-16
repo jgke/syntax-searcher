@@ -4,21 +4,24 @@
         "extensions": ["c", "cpp", "h", "hpp"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": []
     },
     "clojure": {
         "identifier": ["[a-zA-Z0-9*+!_'?<>=-]", "[a-zA-Z0-9*+!_'?<>=-]"],
         "extensions": ["clj", "cljc", "cljs", "edn"],
         "strings": ["\""],
         "single_comments": [";"],
-        "multi_comments": []
+        "multi_comments": [],
+        "regex": []
     },
     "csharp": {
         "identifier": ["[@\\p{Alphabetic}]", "[\\w]"],
         "extensions": ["cs"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": []
     },
     "elixir": {
         "identifier": [
@@ -28,7 +31,8 @@
         "extensions": ["ex", "exs"],
         "strings": ["\"", "'"],
         "single_comments": ["#"],
-        "multi_comments": []
+        "multi_comments": [],
+        "regex": []
     },
     "haskell": {
         "identifier": [
@@ -38,62 +42,71 @@
         "extensions": ["hs"],
         "strings": ["\"", "'"],
         "single_comments": ["--"],
-        "multi_comments": [["{-", "-}"]]
+        "multi_comments": [["{-", "-}"]],
+        "regex": []
     },
     "java": {
         "identifier": ["[@\\p{Alphabetic}_$]", "[\\w$]"],
         "extensions": ["java"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": []
     },
     "javascript": {
         "identifier": ["[\\p{Alphabetic}_$]", "[\\w$]"],
         "extensions": ["js", "ts", "jsx", "tsx"],
         "strings": ["\"", "'", "`"],
         "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": ["/"]
     },
     "plain": {
         "identifier": ["\\p{Alphabetic}", "\\w"],
         "extensions": ["txt"],
         "strings": [],
         "single_comments": [],
-        "multi_comments": []
+        "multi_comments": [],
+        "regex": []
     },
     "php": {
         "identifier": ["[\\p{L}\\p{Nl}]", "[\\p{ID_Continue}]"],
         "extensions": ["php"],
         "strings": ["\"", "'"],
         "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": []
     },
     "sql": {
         "identifier": ["[\\p{Alphabetic}]", "[\\w$]"],
         "extensions": ["sql"],
         "strings": ["'"],
         "single_comments": ["--"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": []
     },
     "python": {
         "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],
         "extensions": ["py"],
         "strings": ["\"", "'"],
         "single_comments": ["#"],
-        "multi_comments": []
+        "multi_comments": [],
+        "regex": []
     },
     "rust": {
         "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],
         "extensions": ["rs"],
         "strings": ["\""],
         "single_comments": ["//"],
-        "multi_comments": [["/*", "*/"]]
+        "multi_comments": [["/*", "*/"]],
+        "regex": []
     },
     "visualbasic": {
         "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],
         "extensions": ["vb"],
         "strings": ["\""],
         "single_comments": ["'"],
-        "multi_comments": []
+        "multi_comments": [],
+        "regex": []
     }
 }

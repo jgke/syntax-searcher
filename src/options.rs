@@ -40,6 +40,8 @@ pub struct Options {
     pub identifier_regex_continue: Regex,
     /// Parse '..' as a range.
     pub ranges: bool,
+    /// List of regex literal delimiters (eg. "/")
+    pub regex_delimiters: HashSet<String>,
 
     /// Print only matching parts of the source code.
     pub only_matching: bool,
@@ -82,6 +84,7 @@ struct BuiltinLanguageDefaults {
     single_comments: Vec<String>,
     multi_comments: Vec<(String, String)>,
     blocks: Option<Vec<(String, String)>>, // default () [] {}
+    regex: Vec<String>,
 }
 
 const BUILTIN_DATABASE: &str = include_str!("../config.json");
@@ -121,6 +124,7 @@ lazy_static! {
                     .get(1)
                     .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
                     .unwrap_or_else(|| default_opts.identifier_regex_continue.clone()),
+                regex_delimiters: ty.regex.iter().cloned().collect(),
                 ..Options::default()
             };
 
@@ -154,6 +158,7 @@ impl Default for Options {
                 .collect(),
             identifier_regex_start: Regex::new("[\\p{ID_Start}_]").expect("internal error"),
             identifier_regex_continue: Regex::new("\\p{ID_Continue}").expect("internal error"),
+            regex_delimiters: HashSet::new(),
             ranges: true,
 
             only_matching: false,

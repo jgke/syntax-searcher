@@ -40,6 +40,8 @@ pub enum StandardTokenType {
     StringLiteral(String),
     /// Symbol, eg. +
     Symbol(String),
+    /// Regex literal (without suffix flags), eg. /[a-z]/
+    Regex(String),
 }
 
 /// Query token type.
@@ -120,6 +122,34 @@ pub fn tokenize_query<R: Read>(
     (res, iter)
 }
 
+/// Given the token history, can we parse a regex literal?
+///
+/// This is a JavaScript-specific hack: Regex literals conflict with the division operator and
+/// the closing tag. If the previous token looks like it could be a part of an expression, return
+/// false. Almost everything looks like an expression in JavaScript, the regex parsing can only
+/// happen either opening parens, closed blocks, or operators.
+fn can_parse_regex(history: &[QueryToken]) -> bool {
+    let ty = match history.last() {
+        None => return true,
+        Some(QueryToken {
+            ty: QueryTokenType::Special(_),
+            span: _,
+        }) => return true,
+        Some(QueryToken {
+            ty: QueryTokenType::Standard(ty),
+            span: _,
+        }) => ty,
+    };
+
+    let sym = match ty {
+        StandardTokenType::Symbol(sym) => sym,
+        _ => return false,
+    };
+
+    // I believe closing paren is the only symbol blocking regex parsing?
+    sym != ")"
+}
+
 /// Generate tokens from a PeekableStringIterator.
 pub fn tokenize_recur(
     iter: &mut PeekableStringIterator,
@@ -162,6 +192,11 @@ pub fn tokenize_recur(
                     break;
                 }
                 read_query_command(iter, options)
+            }
+            _ if can_parse_regex(&res)
+                && options.regex_delimiters.iter().any(|c| iter.starts_with(c)) =>
+            {
+                read_regex(iter)
             }
             ' ' | '\t' | '\n' => {
                 iter.next();
@@ -307,6 +342,14 @@ fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
     let content = read_string_content(iter);
     QueryToken {
         ty: QueryTokenType::Standard(StandardTokenType::StringLiteral(content)),
+        span: iter.current_span(),
+    }
+}
+
+fn read_regex(iter: &mut PeekableStringIterator) -> QueryToken {
+    let content = read_string_content(iter);
+    QueryToken {
+        ty: QueryTokenType::Standard(StandardTokenType::Regex(content)),
         span: iter.current_span(),
     }
 }
@@ -546,6 +589,78 @@ mod tests {
                     14,
                     20,
                 ),
+            ],
+        );
+
+        test(
+            "'foo'",
+            vec![t(StandardTokenType::StringLiteral("foo".to_string()), 0, 4)],
+        );
+
+        test(
+            "\"bar\"",
+            vec![t(StandardTokenType::StringLiteral("bar".to_string()), 0, 4)],
+        );
+
+        test(
+            "\"baz'nt\"",
+            vec![t(
+                StandardTokenType::StringLiteral("baz'nt".to_string()),
+                0,
+                7,
+            )],
+        );
+
+        test(
+            "'qux\"d'",
+            vec![t(
+                StandardTokenType::StringLiteral("qux\"d".to_string()),
+                0,
+                6,
+            )],
+        );
+    }
+
+    #[test]
+    fn regex_literal() {
+        test(
+            r#"/foo/"#,
+            vec![t(StandardTokenType::Regex("foo".to_string()), 0, 4)],
+        );
+
+        test(
+            r#"/fo\/o/"#,
+            vec![t(StandardTokenType::Regex("fo\\/o".to_string()), 0, 6)],
+        );
+
+        test(
+            r#"a/b/"#,
+            vec![
+                t(StandardTokenType::Identifier("a".to_string()), 0, 0),
+                t(StandardTokenType::Symbol("/".to_string()), 1, 1),
+                t(StandardTokenType::Identifier("b".to_string()), 2, 2),
+                t(StandardTokenType::Symbol("/".to_string()), 3, 3),
+            ],
+        );
+
+        test(
+            r#"a+/b/"#,
+            vec![
+                t(StandardTokenType::Identifier("a".to_string()), 0, 0),
+                t(StandardTokenType::Symbol("+".to_string()), 1, 1),
+                t(StandardTokenType::Regex("b".to_string()), 2, 4),
+            ],
+        );
+        test(
+            r#"(a+b)/c"#,
+            vec![
+                t(StandardTokenType::Symbol("(".to_string()), 0, 0),
+                t(StandardTokenType::Identifier("a".to_string()), 1, 1),
+                t(StandardTokenType::Symbol("+".to_string()), 2, 2),
+                t(StandardTokenType::Identifier("b".to_string()), 3, 3),
+                t(StandardTokenType::Symbol(")".to_string()), 4, 4),
+                t(StandardTokenType::Symbol("/".to_string()), 5, 5),
+                t(StandardTokenType::Identifier("c".to_string()), 6, 6),
             ],
         );
     }

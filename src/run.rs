@@ -248,7 +248,7 @@ mod tests {
                     span: Span { lo: 3, hi: 5 }
                 }) if ident == "foo"));
             }
-            _ => assert!(false),
+            _ => unreachable!(),
         }
     }
 

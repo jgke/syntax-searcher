@@ -271,7 +271,7 @@ impl PeekableStringIterator {
         self.line_numbers
             .range(0..=offset)
             .map(|(start, _)| *start)
-            .last()
+            .next_back()
             .unwrap_or(0)
     }
 
@@ -279,7 +279,7 @@ impl PeekableStringIterator {
         self.line_numbers
             .range(0..=offset)
             .map(|(_, (end, _))| *end)
-            .last()
+            .next_back()
             .unwrap_or(usize::MAX)
     }
 
@@ -363,24 +363,15 @@ mod tests {
     #[test]
     fn collect_while() {
         let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
-        let (s1, _) = iter.collect_while(|x| match x {
-            'a'..='z' => true,
-            _ => false,
-        });
+        let (s1, _) = iter.collect_while(|x| x.is_ascii_lowercase());
         assert_eq!(s1, "foo");
         assert_eq!(iter.next(), Some(' '));
 
-        let (s2, _) = iter.collect_while(|x| match x {
-            'a'..='z' => true,
-            _ => false,
-        });
+        let (s2, _) = iter.collect_while(|x| x.is_ascii_lowercase());
         assert_eq!(s2, "bar");
         assert_eq!(iter.next(), Some(' '));
 
-        let (s3, _) = iter.collect_while(|x| match x {
-            'a'..='z' => true,
-            _ => false,
-        });
+        let (s3, _) = iter.collect_while(|x| x.is_ascii_lowercase());
         assert_eq!(s3, "baz");
         assert_eq!(iter.next(), None);
     }
@@ -412,9 +403,9 @@ mod tests {
     #[test]
     fn peek_ahead() {
         let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
-        assert_eq!(iter.starts_with("foo "), true);
-        assert_eq!(iter.starts_with("foo "), true);
-        assert_eq!(iter.starts_with("bar"), false);
+        assert!(iter.starts_with("foo "));
+        assert!(iter.starts_with("foo "));
+        assert!(!iter.starts_with("bar"));
         assert_eq!(iter.next(), Some('f'));
         assert_eq!(iter.next(), Some('o'));
         assert_eq!(iter.next(), Some('o'));
@@ -435,22 +426,13 @@ mod tests {
     fn get_lines() {
         let mut iter =
             PeekableStringIterator::new("foo.h".to_string(), "foo\nbar\nbaz".to_string());
-        let (s1, sp1) = iter.collect_while(|x| match x {
-            'a'..='z' => true,
-            _ => false,
-        });
+        let (s1, sp1) = iter.collect_while(|x| x.is_ascii_lowercase());
         assert_eq!(s1, "foo");
         assert_eq!(iter.next(), Some('\n'));
-        let (s2, sp2) = iter.collect_while(|x| match x {
-            'a'..='z' => true,
-            _ => false,
-        });
+        let (s2, sp2) = iter.collect_while(|x| x.is_ascii_lowercase());
         assert_eq!(s2, "bar");
         assert_eq!(iter.next(), Some('\n'));
-        let (s3, sp3) = iter.collect_while(|x| match x {
-            'a'..='z' => true,
-            _ => false,
-        });
+        let (s3, sp3) = iter.collect_while(|x| x.is_ascii_lowercase());
         assert_eq!(s3, "baz");
         assert_eq!(iter.next(), None);
 

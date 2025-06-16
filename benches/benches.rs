@@ -10,7 +10,7 @@ fn bench_tokenizer_dict(c: &mut Criterion) {
     let mut group = c.benchmark_group("tokenizer dict");
     group.bench_function("tokenizer dict", |b| {
         b.iter(|| {
-            let content = File::open(&filename).unwrap();
+            let content = File::open(filename).unwrap();
             tokenize(filename, content, &options)
         })
     });

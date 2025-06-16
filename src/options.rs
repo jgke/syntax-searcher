@@ -495,7 +495,7 @@ impl Options {
                     None
                 }
             })
-            .last()
+            .next_back()
             .unwrap_or_else(|| extension.to_string_lossy().to_string());
 
         let mut opts: Options = EXTENSION_TO_SETTINGS
@@ -616,6 +616,7 @@ mod tests {
 
     #[test]
     fn builtin_json_is_valid() {
-        serde_json::from_str::<HashMap<String, BuiltinLanguageDefaults>>(BUILTIN_DATABASE).unwrap();
+        serde_json::from_str::<HashMap<String, BuiltinLanguageDefaults>>(BUILTIN_DATABASE)
+            .expect("Failed to parse builtin JSON database, check config.json");
     }
 }

@@ -9,10 +9,10 @@ fn hello_world_langs_nocolor(file: &str) {
     let mut cmd = Command::cargo_bin("syns").unwrap();
     cmd.arg("--no-color").arg("-o").arg("\\.").arg(file);
 
-    let filename = file.split('/').last().unwrap();
+    let filename = file.split('/').next_back().unwrap();
     let mut expected_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     expected_output_path.push("tests/.fixtures/nocolor");
-    expected_output_path.push(&filename);
+    expected_output_path.push(filename);
 
     let expected_output = std::fs::read(expected_output_path).unwrap();
 
@@ -25,10 +25,10 @@ fn hello_world_langs_color(file: &str) {
     let mut cmd = Command::cargo_bin("syns").unwrap();
     cmd.arg("--color").arg("\\.").arg(file);
 
-    let filename = file.split('/').last().unwrap();
+    let filename = file.split('/').next_back().unwrap();
     let mut expected_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     expected_output_path.push("tests/.fixtures/color");
-    expected_output_path.push(&filename);
+    expected_output_path.push(filename);
 
     let expected_output = std::fs::read(expected_output_path).unwrap();
 

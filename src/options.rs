@@ -49,6 +49,8 @@ pub struct Options {
     pub only_print_filenames: bool,
     /// Don't print any filenames.
     pub dont_print_filenames: bool,
+    /// Follow symlinks.
+    pub follow_symlinks: bool,
     /// Use colored output.
     pub color: ColorChoice,
 
@@ -74,6 +76,7 @@ enum OptionCommand {
     OnlyMatching,
     OnlyPrintFilenames,
     DontPrintFilenames,
+    FollowSymlinks,
     Color(ColorChoice),
     DumpMachine,
     PrintOptionsAndQuit,
@@ -167,6 +170,7 @@ impl Default for Options {
             only_matching: false,
             only_print_filenames: false,
             dont_print_filenames: false,
+            follow_symlinks: false,
             color: ColorChoice::Auto,
             dump_machine: false,
         }
@@ -441,6 +445,9 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Short('I') | ArgRef::Long("dont-print-filenames") => {
                 OptionCommand::DontPrintFilenames
             }
+            ArgRef::Short('L') | ArgRef::Long("follow") => {
+                OptionCommand::FollowSymlinks
+            }
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
@@ -554,6 +561,7 @@ impl Options {
                 OptionCommand::OnlyMatching => opts.only_matching = true,
                 OptionCommand::OnlyPrintFilenames => opts.only_print_filenames = true,
                 OptionCommand::DontPrintFilenames => opts.dont_print_filenames = true,
+                OptionCommand::FollowSymlinks => opts.follow_symlinks = true,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}

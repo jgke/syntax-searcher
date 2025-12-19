@@ -197,3 +197,56 @@ console.log("Hello world!")
         }
     }
 }
+
+#[test]
+fn test_no_symlink() {
+    let mut cmd = run("test-files", "symlink");
+
+    let value = cmd.assert().code(0).get_output().clone();
+
+    let r = Regex::new(r"\[.*test-files").unwrap();
+    let raw_string = String::from_utf8(value.stdout).unwrap();
+    let lines = raw_string
+        .lines()
+        .map(|line| r.replace_all(line, "[test-files").to_string())
+        .collect::<Vec<String>>();
+
+    assert_eq!(lines.len(), 1);
+
+    let expected_output = r#"
+[test-files/symlink-target/file:1] symlink matched"#;
+
+    for line in expected_output.lines() {
+        if !line.is_empty() {
+            assert!(lines.contains(&line.to_string()));
+        }
+    }
+}
+
+#[test]
+fn test_follow_symlink() {
+    let mut cmd = run("test-files", "symlink");
+    cmd.arg("-L");
+
+    let value = cmd.assert().code(0).get_output().clone();
+
+    let r = Regex::new(r"\[.*test-files").unwrap();
+    let raw_string = String::from_utf8(value.stdout).unwrap();
+    let lines = raw_string
+        .lines()
+        .map(|line| r.replace_all(line, "[test-files").to_string())
+        .collect::<Vec<String>>();
+
+    assert_eq!(lines.len(), 3);
+
+    let expected_output = r#"
+[test-files/symlink:1] symlink matched
+[test-files/symlink-target/file:1] symlink matched
+[test-files/symlink-dir/file:1] symlink matched"#;
+
+    for line in expected_output.lines() {
+        if !line.is_empty() {
+            assert!(lines.contains(&line.to_string()));
+        }
+    }
+}

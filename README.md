@@ -71,6 +71,7 @@ General options:
 | `-o, --only-matching`           | Print only the matched parts.                                                     |
 | `-l, --only-print-filenames`    | Only print matching files' names.                                                 |
 | `-I, --dont-print-filenames`    | Don't print matching files' names.                                                |
+| `-L, --follow                   | Follow symlinks.                                                                  |
 | `--only-files-matching REGEX`   | Only scan files matching REGEX                                                    |
 | `--ignore-files-matching REGEX` | Don't scan files matching REGEX                                                   |
 

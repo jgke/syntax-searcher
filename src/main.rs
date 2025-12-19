@@ -48,6 +48,9 @@ fn main() -> io::Result<()> {
     let options = Options::new(&txt, &args);
     let default_path = "./".into();
     let mut walker = WalkBuilder::new(options.paths.first().unwrap_or(&default_path));
+    if options.follow_symlinks {
+        walker.follow_links(true);
+    }
     for path in options.paths.iter().skip(1) {
         walker.add(path);
     }
@@ -77,6 +80,11 @@ fn main() -> io::Result<()> {
                 }
                 if let Ok(attr) = fs::metadata(file_path) {
                     if attr.is_dir() {
+                        continue;
+                    }
+                }
+                if let Ok(attr) = fs::symlink_metadata(file_path) {
+                    if attr.is_symlink() && !options.follow_symlinks {
                         continue;
                     }
                 }

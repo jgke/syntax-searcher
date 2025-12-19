@@ -58,23 +58,42 @@ pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, fi
         }
         let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
         let (start, end) = iter.get_line_information(span);
-        let line_number = if start == end {
+        let ws_if_filenames = if options.dont_print_filenames {
+            ""
+        } else {
+            " "
+        };
+        let line_number = if options.dont_print_filenames {
+            "".to_string()
+        } else if start == end {
             format!("[{}:{}]", &filename.to_string_lossy(), start)
         } else {
             format! {"[{}:{}-{}]", &filename.to_string_lossy(), start, end}
         };
         if options.only_matching {
-            write_colored!(&path_spec, stdout, "{}", line_number);
-            writeln_colored!(&match_spec, stdout, " {}", iter.get_content_between(span));
+            if !options.dont_print_filenames {
+                write_colored!(&path_spec, stdout, "{}", line_number);
+            }
+            writeln_colored!(
+                &match_spec,
+                stdout,
+                "{}{}",
+                ws_if_filenames,
+                iter.get_content_between(span)
+            );
         } else {
             let (head, lines, tail) = iter.get_lines_including(span);
             if lines.len() == 1 {
-                write_colored!(&path_spec, stdout, "{}", line_number);
-                write_colored!(&reset_spec, stdout, " {}", head);
+                if !options.dont_print_filenames {
+                    write_colored!(&path_spec, stdout, "{}", line_number);
+                }
+                write_colored!(&reset_spec, stdout, "{}{}", ws_if_filenames, head);
                 write_colored!(&match_spec, stdout, "{}", lines[0]);
                 writeln_colored!(&reset_spec, stdout, "{}", tail);
             } else {
-                writeln_colored!(&path_spec, stdout, "{}", line_number);
+                if !options.dont_print_filenames {
+                    writeln_colored!(&path_spec, stdout, "{}", line_number);
+                }
                 write_colored!(&reset_spec, stdout, "{}", head);
                 let mut lines_peekable = lines.into_iter().peekable();
                 while let Some(line) = lines_peekable.next() {

@@ -171,3 +171,41 @@ test-files/hello/java.java"#;
         }
     }
 }
+
+#[test]
+fn test_multiple_match_no_filename() {
+    let mut cmd = run("test-files", "\"Hello world!\"");
+    cmd.arg("-I");
+
+    let value = cmd.assert().code(0).get_output().clone();
+
+    let lines = String::from_utf8(value.stdout)
+        .unwrap()
+        .lines()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+
+    assert_eq!(lines.len(), 10);
+
+    let expected_output = r#"
+    print('Hello world!')
+    IO.puts "Hello world!"
+    Console.WriteLine("Hello world!")
+            System.Console.WriteLine("Hello world!");
+main = putStrLn "Hello world!"
+console.log("Hello world!")
+    print("Hello world!")
+  (println "Hello world!"))
+   println!("Hello world!");
+        System.out.println("Hello world!");"#;
+
+    for line in &lines {
+        dbg!(&line);
+    }
+    for line in expected_output.lines() {
+        dbg!(&line);
+        if !line.is_empty() {
+            assert!(lines.contains(&line.to_string()));
+        }
+    }
+}

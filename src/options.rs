@@ -47,6 +47,8 @@ pub struct Options {
     pub only_matching: bool,
     /// Only print matching files' names rather than actual matches.
     pub only_print_filenames: bool,
+    /// Don't print any filenames.
+    pub dont_print_filenames: bool,
     /// Use colored output.
     pub color: ColorChoice,
 
@@ -71,6 +73,7 @@ enum OptionCommand {
     IgnoreFilesMatching(Regex),
     OnlyMatching,
     OnlyPrintFilenames,
+    DontPrintFilenames,
     Color(ColorChoice),
     DumpMachine,
     PrintOptionsAndQuit,
@@ -163,6 +166,7 @@ impl Default for Options {
 
             only_matching: false,
             only_print_filenames: false,
+            dont_print_filenames: false,
             color: ColorChoice::Auto,
             dump_machine: false,
         }
@@ -201,6 +205,7 @@ Options:
   --ignore-files-matching REGEX Don't scan files matching REGEX
   -o, --only-matching           Print only the matched parts
   -l, --only-print-filenames    Only print matching files' names
+  -I, --dont-print-filenames    Don't print any filenames
   --options                     Print what options would have been used to
                                 parse FILE
 "#,
@@ -433,6 +438,9 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Short('l') | ArgRef::Long("only-print-filenames") => {
                 OptionCommand::OnlyPrintFilenames
             }
+            ArgRef::Short('I') | ArgRef::Long("dont-print-filenames") => {
+                OptionCommand::DontPrintFilenames
+            }
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
@@ -545,6 +553,7 @@ impl Options {
                 }
                 OptionCommand::OnlyMatching => opts.only_matching = true,
                 OptionCommand::OnlyPrintFilenames => opts.only_print_filenames = true,
+                OptionCommand::DontPrintFilenames => opts.dont_print_filenames = true,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}

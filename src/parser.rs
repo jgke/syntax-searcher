@@ -107,6 +107,8 @@ pub enum ParsedAstMatcher {
     Plus(Box<ParsedAstMatcher>),
     /// Match `ParsedAstMatcher` zero or more times
     Star(Box<ParsedAstMatcher>),
+    /// Match `ParsedAstMatcher` zero or one times
+    QuestionMark(Box<ParsedAstMatcher>),
     /// Match either `ParsedAstMatcher`
     Or(Box<ParsedAstMatcher>, Box<ParsedAstMatcher>),
     /// Grouped `ParsedAstMatcher`s
@@ -158,6 +160,10 @@ fn parse_query_ast(
                 QueryTokenType::Special(SpecialTokenType::Plus) => {
                     let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
                     res.push(ParsedAstMatcher::Plus(Box::new(prev)));
+                }
+                QueryTokenType::Special(SpecialTokenType::QuestionMark) => {
+                    let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);
+                    res.push(ParsedAstMatcher::QuestionMark(Box::new(prev)));
                 }
                 QueryTokenType::Special(SpecialTokenType::Star) => {
                     let prev = res.pop().unwrap_or(ParsedAstMatcher::Any);

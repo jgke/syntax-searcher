@@ -280,4 +280,20 @@ mod tests {
         assert_eq!(run_strs("a c \\| \\(a a\\) b\\+", "a a b"), vec!["a a b"]);
         assert_eq!(run_strs("a c \\| \\(a a\\) b\\+", "a c b"), vec!["a c"]);
     }
+
+    #[test]
+    fn test_question_mark() {
+        assert_eq!(
+            run_strs("a \\? b c", "a b c"),
+            vec!["a b c", "b c"]
+        );
+        assert_eq!(
+            run_strs("a \\? b c", "b c"),
+            vec!["b c"]
+        );
+        assert_eq!(
+            run_strs("d \\? b c", "b c"),
+            vec!["b c"]
+        );
+    }
 }

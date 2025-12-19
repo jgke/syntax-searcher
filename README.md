@@ -111,6 +111,7 @@ can be matched using backslash. The following commands are available:
 | `\.`                      | Match any token or paren-delimited tree.                                                |
 | `\+`                      | Match the previous pattern one or more times.                                           |
 | `\*`                      | Match the previous pattern zero or more times.                                          |
+| `\?`                      | Match the previous pattern zero or one times.                                           |
 | `\"regex"`                | Match any string literal with the regex pattern `regex`.                                |
 | `\(pattern\)`             | Group several patterns. Useful for eg. `\(a a\)\+`.                                     |
 | `\$`                      | Match the end of a block.                                                               |

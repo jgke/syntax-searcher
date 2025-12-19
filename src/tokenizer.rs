@@ -16,6 +16,8 @@ pub enum SpecialTokenType {
     Star,
     /// Match previous matcher one or more times.
     Plus,
+    /// Match previous matcher zero or one times.
+    QuestionMark,
     /// Match group end
     End,
     /// Match previous or next matcher
@@ -431,6 +433,7 @@ fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> Q
         '.' => QueryTokenType::Special(SpecialTokenType::Any),
         '*' => QueryTokenType::Special(SpecialTokenType::Star),
         '+' => QueryTokenType::Special(SpecialTokenType::Plus),
+        '?' => QueryTokenType::Special(SpecialTokenType::QuestionMark),
         '|' => QueryTokenType::Special(SpecialTokenType::Or),
         '$' => QueryTokenType::Special(SpecialTokenType::End),
         '"' => {
@@ -681,7 +684,7 @@ mod tests {
 
         let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
         test_query(
-            r#"\.\+\*\"foo.*bar"\$\|"#,
+            r#"\.\+\*\"foo.*bar"\$\|\?"#,
             vec![
                 q(QueryTokenType::Special(SpecialTokenType::Any), 0, 1),
                 q(QueryTokenType::Special(SpecialTokenType::Plus), 2, 3),
@@ -693,6 +696,7 @@ mod tests {
                 ),
                 q(QueryTokenType::Special(SpecialTokenType::End), 17, 18),
                 q(QueryTokenType::Special(SpecialTokenType::Or), 19, 20),
+                q(QueryTokenType::Special(SpecialTokenType::QuestionMark), 21, 22),
             ],
             opts,
         );

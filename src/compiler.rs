@@ -142,6 +142,13 @@ impl Machine {
                 self.add_transition(end, start, Matcher::Epsilon);
                 (start, end)
             }
+            ParsedAstMatcher::QuestionMark(matcher) => {
+                let (start, end) = self.compile_state(matcher);
+                let new_end = self.state().id;
+                self.add_transition(start, new_end, Matcher::Epsilon);
+                self.add_transition(end, new_end, Matcher::Epsilon);
+                (start, new_end)
+            }
             ParsedAstMatcher::Star(matcher) => {
                 let (start, end) = self.compile_state(matcher);
                 let new_end = self.state().id;

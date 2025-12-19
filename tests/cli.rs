@@ -122,11 +122,7 @@ fn test_multiple_match_multiple_files() {
 [test-files/hello/rust.rs:2]    println!("Hello world!");
 [test-files/hello/java.java:5]         System.out.println("Hello world!");"#;
 
-    for line in &lines {
-        dbg!(&line);
-    }
     for line in expected_output.lines() {
-        dbg!(&line);
         if !line.is_empty() {
             assert!(lines.contains(&line.to_string()));
         }
@@ -161,11 +157,7 @@ test-files/hello/clojure.clj
 test-files/hello/rust.rs
 test-files/hello/java.java"#;
 
-    for line in &lines {
-        dbg!(&line);
-    }
     for line in expected_output.lines() {
-        dbg!(&line);
         if !line.is_empty() {
             assert!(lines.contains(&line.to_string()));
         }
@@ -199,11 +191,7 @@ console.log("Hello world!")
    println!("Hello world!");
         System.out.println("Hello world!");"#;
 
-    for line in &lines {
-        dbg!(&line);
-    }
     for line in expected_output.lines() {
-        dbg!(&line);
         if !line.is_empty() {
             assert!(lines.contains(&line.to_string()));
         }

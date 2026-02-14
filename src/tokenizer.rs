@@ -30,7 +30,7 @@ pub enum SpecialTokenType {
 
 /// Stardard token types for source files.
 // TODO: merge identifier, integer, float and symbol
-#[derive(Clone, Debug, PartialEq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StandardTokenType {
     /// Identifier, eg. foo
     Identifier(String),
@@ -56,7 +56,7 @@ pub enum QueryTokenType {
 }
 
 /// Source code token.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StandardToken {
     /// Type of the token.
     pub ty: StandardTokenType,

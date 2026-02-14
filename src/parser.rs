@@ -14,7 +14,7 @@ use crate::tokenizer::{
 };
 
 /// Abstract syntax tree for source code.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Ast {
     /// A single token.
     Token(StandardToken),

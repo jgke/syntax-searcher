@@ -460,7 +460,9 @@ fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> Q
             let tts = QueryTokenType::Special(SpecialTokenType::Nested(tokenize_recur(
                 iter, options, true, true,
             )));
-            assert_eq!(iter.next(), Some(')'));
+            if iter.peek() == Some(')') {
+                iter.next();
+            }
             return QueryToken {
                 ty: tts,
                 span: iter.current_span(),
@@ -719,6 +721,39 @@ mod tests {
                 q(QueryTokenType::Special(SpecialTokenType::Or), 19, 20),
                 q(QueryTokenType::Special(SpecialTokenType::QuestionMark), 21, 22),
             ],
+            opts,
+        );
+    }
+
+    #[test]
+    fn user_forgot_to_close_group() {
+        let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
+
+        // \() should behave like \()\)
+        test_query(
+            r#"\()"#,
+            vec![q(
+                QueryTokenType::Special(SpecialTokenType::Nested(vec![q(
+                    QueryTokenType::Standard(StandardTokenType::Symbol(")".to_string())),
+                    2,
+                    2,
+                )])),
+                2,
+                2,
+            )],
+            opts.clone(),
+        );
+        test_query(
+            r#"\()\)"#,
+            vec![q(
+                QueryTokenType::Special(SpecialTokenType::Nested(vec![q(
+                    QueryTokenType::Standard(StandardTokenType::Symbol(")".to_string())),
+                    2,
+                    2,
+                )])),
+                3,
+                4,
+            )],
             opts,
         );
     }

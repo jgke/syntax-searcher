@@ -222,3 +222,84 @@ pub fn parse_query<R: Read>(
 
     (parsed, iter)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_str(input: &str, ext: &str) -> Vec<Ast> {
+        let options = Options::new(ext.as_ref(), &["syns", "query", "file"]);
+        let (tokens, _) = tokenize("test", input.as_bytes(), &options);
+        parse(&options, &mut tokens.into_iter().peekable(), false)
+    }
+
+    /// Strip all spans from an AST tree so we can compare structure only.
+    fn strip_spans(ast: &[Ast]) -> Vec<Ast> {
+        let blank = Span { lo: 0, hi: 0 };
+        ast.iter()
+            .map(|node| match node {
+                Ast::Token(t) => Ast::Token(StandardToken {
+                    ty: t.ty.clone(),
+                    span: blank,
+                }),
+                Ast::Delimited { op, cp, content } => Ast::Delimited {
+                    op: StandardToken {
+                        ty: op.ty.clone(),
+                        span: blank,
+                    },
+                    cp: cp.as_ref().map(|t| StandardToken {
+                        ty: t.ty.clone(),
+                        span: blank,
+                    }),
+                    content: strip_spans(content),
+                },
+            })
+            .collect()
+    }
+
+    fn tok(ty: StandardTokenType) -> Ast {
+        Ast::Token(StandardToken {
+            ty,
+            span: Span { lo: 0, hi: 0 },
+        })
+    }
+
+    fn delim(op: &str, content: Vec<Ast>, cp: &str) -> Ast {
+        let blank = Span { lo: 0, hi: 0 };
+        Ast::Delimited {
+            op: StandardToken {
+                ty: StandardTokenType::Symbol(op.to_string()),
+                span: blank,
+            },
+            cp: Some(StandardToken {
+                ty: StandardTokenType::Symbol(cp.to_string()),
+                span: blank,
+            }),
+            content,
+        }
+    }
+
+    fn ident(s: &str) -> Ast {
+        tok(StandardTokenType::Identifier(s.to_string()))
+    }
+
+    fn sym(s: &str) -> Ast {
+        tok(StandardTokenType::Symbol(s.to_string()))
+    }
+
+    #[test]
+    fn parse_braces() {
+        let ast = parse_str("foo { bar(); }", "js");
+        assert_eq!(
+            strip_spans(&ast),
+            vec![
+                ident("foo"),
+                delim("{", vec![
+                    ident("bar"),
+                    delim("(", vec![], ")"),
+                    sym(";"),
+                ], "}"),
+            ]
+        );
+    }
+}

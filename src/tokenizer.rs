@@ -100,6 +100,10 @@ pub fn tokenize<R: Read>(
     content
         .read_to_end(&mut file_buf)
         .expect("Failed to read file to memory");
+    if !options.search_binary && file_buf.contains(&0) {
+        let iter = PeekableStringIterator::new(filename.to_string(), String::new());
+        return (vec![], iter);
+    }
     let buf = String::from_utf8_lossy(&file_buf).to_string();
     let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
     let res = tokenize_recur(&mut iter, options, false, false)
@@ -777,6 +781,30 @@ mod tests {
                 ),
             ],
             opts,
+        );
+    }
+
+    #[test]
+    fn binary_file_skipped_by_default() {
+        let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
+        let input: &[u8] = b"foo \x00 bar";
+        let (tokens, _) = tokenize("bin", input, &opts);
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn binary_file_searched_with_flag() {
+        let mut opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
+        opts.search_binary = true;
+        let input: &[u8] = b"foo \x00 bar";
+        let (tokens, _) = tokenize("bin", input, &opts);
+        assert_eq!(
+            tokens,
+            vec![
+                t(StandardTokenType::Identifier("foo".to_string()), 0, 2),
+                t(StandardTokenType::Symbol("\0".to_string()), 4, 4),
+                t(StandardTokenType::Identifier("bar".to_string()), 6, 8),
+            ]
         );
     }
 }

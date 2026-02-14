@@ -71,7 +71,8 @@ General options:
 | `-o, --only-matching`           | Print only the matched parts.                                                     |
 | `-l, --only-print-filenames`    | Only print matching files' names.                                                 |
 | `-I, --dont-print-filenames`    | Don't print matching files' names.                                                |
-| `-L, --follow                   | Follow symlinks.                                                                  |
+| `-L, --follow`                  | Follow symlinks.                                                                  |
+| `-a, --text`                    | Search binary files as if they were text.                                         |
 | `--only-files-matching REGEX`   | Only scan files matching REGEX                                                    |
 | `--ignore-files-matching REGEX` | Don't scan files matching REGEX                                                   |
 
@@ -134,7 +135,6 @@ settings, so `syns` can be used out-of-the-box with other languages as well.
 Unimplemented features
 ======================
 
-- Detect binary files
 - More parsing strategies
     - Strings:
         - Support for strings with various prefixes, eg. Python's `f`

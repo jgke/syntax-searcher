@@ -51,6 +51,8 @@ pub struct Options {
     pub dont_print_filenames: bool,
     /// Follow symlinks.
     pub follow_symlinks: bool,
+    /// Search binary files as if they were text.
+    pub search_binary: bool,
     /// Use colored output.
     pub color: ColorChoice,
 
@@ -77,6 +79,7 @@ enum OptionCommand {
     OnlyPrintFilenames,
     DontPrintFilenames,
     FollowSymlinks,
+    SearchBinary,
     Color(ColorChoice),
     DumpMachine,
     PrintOptionsAndQuit,
@@ -171,6 +174,7 @@ impl Default for Options {
             only_print_filenames: false,
             dont_print_filenames: false,
             follow_symlinks: false,
+            search_binary: false,
             color: ColorChoice::Auto,
             dump_machine: false,
         }
@@ -210,6 +214,8 @@ Options:
   -o, --only-matching           Print only the matched parts
   -l, --only-print-filenames    Only print matching files' names
   -I, --dont-print-filenames    Don't print any filenames
+  -L, --follow                  Follow symlinks
+  -a, --text                    Search binary files as if they were text
   --options                     Print what options would have been used to
                                 parse FILE
 "#,
@@ -448,6 +454,7 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Short('L') | ArgRef::Long("follow") => {
                 OptionCommand::FollowSymlinks
             }
+            ArgRef::Short('a') | ArgRef::Long("text") => OptionCommand::SearchBinary,
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
@@ -562,6 +569,7 @@ impl Options {
                 OptionCommand::OnlyPrintFilenames => opts.only_print_filenames = true,
                 OptionCommand::DontPrintFilenames => opts.dont_print_filenames = true,
                 OptionCommand::FollowSymlinks => opts.follow_symlinks = true,
+                OptionCommand::SearchBinary => opts.search_binary = true,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}

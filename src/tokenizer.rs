@@ -398,12 +398,24 @@ fn read_other(
 ) -> QueryToken {
     match iter.next_new_span() {
         Some(c) => {
-            if !had_whitespace {
+            // We want to parse eg. ++ as a single token, but parse
+            // "Foo<T>;" as ["Foo", "<", "T", ">", ";"].
+            // In theory, this would require language-specific operator lists, but
+            // we can get quite far by just checking for comma and semicolon.
+            if !had_whitespace && c != ',' && c != ';' {
                 if let Some(QueryToken {
                     ty: QueryTokenType::Standard(StandardTokenType::Symbol(old_c)),
                     span,
                 }) = res.last()
                 {
+                    if old_c == "," || old_c == ";" {
+                        return QueryToken {
+                            ty: QueryTokenType::Standard(StandardTokenType::Symbol(
+                                c.to_string(),
+                            )),
+                            span: iter.current_span(),
+                        };
+                    }
                     let new_symbol = format!("{}{}", old_c, c);
                     let new_span = span.merge(&iter.current_span());
                     res.pop();
@@ -572,6 +584,15 @@ mod tests {
             vec![
                 t(StandardTokenType::Symbol("+".to_string()), 0, 0),
                 t(StandardTokenType::Symbol("+".to_string()), 2, 2),
+            ],
+        );
+        test(
+            "++;++,",
+            vec![
+                t(StandardTokenType::Symbol("++".to_string()), 0, 1),
+                t(StandardTokenType::Symbol(";".to_string()), 2, 2),
+                t(StandardTokenType::Symbol("++".to_string()), 3, 4),
+                t(StandardTokenType::Symbol(",".to_string()), 5, 5),
             ],
         );
     }

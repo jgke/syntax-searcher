@@ -7,6 +7,7 @@ pub mod collection;
 
 pub mod argparse;
 pub mod compiler;
+pub mod multipeek_putbackn;
 pub mod options;
 pub mod parser;
 pub mod psi;

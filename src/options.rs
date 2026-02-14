@@ -42,6 +42,8 @@ pub struct Options {
     pub ranges: bool,
     /// List of regex literal delimiters (eg. "/")
     pub regex_delimiters: HashSet<String>,
+    /// Parse <> as type parameter delimiters when they follow an identifier.
+    pub type_parameter_parsing: bool,
 
     /// Print only matching parts of the source code.
     pub only_matching: bool,
@@ -80,6 +82,8 @@ enum OptionCommand {
     DontPrintFilenames,
     FollowSymlinks,
     SearchBinary,
+    TypeParameterParsing,
+    NoTypeParameterParsing,
     Color(ColorChoice),
     DumpMachine,
     PrintOptionsAndQuit,
@@ -94,6 +98,8 @@ struct BuiltinLanguageDefaults {
     multi_comments: Vec<(String, String)>,
     blocks: Option<Vec<(String, String)>>, // default () [] {}
     regex: Vec<String>,
+    #[serde(default)]
+    type_parameter_parsing: bool,
 }
 
 const BUILTIN_DATABASE: &str = include_str!("../config.json");
@@ -134,6 +140,7 @@ lazy_static! {
                     .map(|r| Regex::new(r).expect("Invalid identifier regex in builtin database"))
                     .unwrap_or_else(|| default_opts.identifier_regex_continue.clone()),
                 regex_delimiters: ty.regex.iter().cloned().collect(),
+                type_parameter_parsing: ty.type_parameter_parsing,
                 ..Options::default()
             };
 
@@ -168,6 +175,7 @@ impl Default for Options {
             identifier_regex_start: Regex::new("[\\p{ID_Start}_]").expect("internal error"),
             identifier_regex_continue: Regex::new("\\p{ID_Continue}").expect("internal error"),
             regex_delimiters: HashSet::new(),
+            type_parameter_parsing: false,
             ranges: true,
 
             only_matching: false,
@@ -216,6 +224,7 @@ Options:
   -I, --dont-print-filenames    Don't print any filenames
   -L, --follow                  Follow symlinks
   -a, --text                    Search binary files as if they were text
+  --[no-]type-parameter-parsing Parse <> as type parameter delimiters
   --options                     Print what options would have been used to
                                 parse FILE
 "#,
@@ -451,10 +460,10 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Short('I') | ArgRef::Long("dont-print-filenames") => {
                 OptionCommand::DontPrintFilenames
             }
-            ArgRef::Short('L') | ArgRef::Long("follow") => {
-                OptionCommand::FollowSymlinks
-            }
+            ArgRef::Short('L') | ArgRef::Long("follow") => OptionCommand::FollowSymlinks,
             ArgRef::Short('a') | ArgRef::Long("text") => OptionCommand::SearchBinary,
+            ArgRef::Long("type-parameter-parsing") => OptionCommand::TypeParameterParsing,
+            ArgRef::Long("no-type-parameter-parsing") => OptionCommand::NoTypeParameterParsing,
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
             ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
@@ -570,6 +579,8 @@ impl Options {
                 OptionCommand::DontPrintFilenames => opts.dont_print_filenames = true,
                 OptionCommand::FollowSymlinks => opts.follow_symlinks = true,
                 OptionCommand::SearchBinary => opts.search_binary = true,
+                OptionCommand::TypeParameterParsing => opts.type_parameter_parsing = true,
+                OptionCommand::NoTypeParameterParsing => opts.type_parameter_parsing = false,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
                 OptionCommand::PrintOptionsAndQuit => {}

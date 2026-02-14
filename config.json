@@ -59,7 +59,8 @@
         "strings": ["\"", "'", "`"],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]],
-        "regex": ["/"]
+        "regex": ["/"],
+        "type_parameter_parsing": true
     },
     "plain": {
         "identifier": ["\\p{Alphabetic}", "\\w"],

@@ -283,17 +283,53 @@ mod tests {
 
     #[test]
     fn test_question_mark() {
+        assert_eq!(run_strs("a \\? b c", "a b c"), vec!["a b c", "b c"]);
+        assert_eq!(run_strs("a \\? b c", "b c"), vec!["b c"]);
+        assert_eq!(run_strs("d \\? b c", "b c"), vec!["b c"]);
+    }
+
+    #[test]
+    fn test_string_regex() {
+        assert_eq!(run_strs("\\\"foo.*\"", "\"foo\""), vec!["\"foo\""]);
+        assert_eq!(run_strs("\\\"foo.*\"", "\"foo bar\""), vec!["\"foo bar\""]);
+        assert_eq!(run_strs("\\\"foo.*\"", "\"bar foo\""), vec!["\"bar foo\""]);
+        assert_eq!(run_strs("\\\"foo.*\"", "\"bar\""), Vec::<String>::new());
+        assert_eq!(run_strs("\\\"foo.*\"", "+"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_group_end() {
+        assert_eq!(run_strs(r"foo(\.\$)", "foo(a)"), vec!["foo(a)"]);
+        assert_eq!(run_strs(r"foo(\.\$)", "foo(a,b)"), Vec::<String>::new());
+        assert_eq!(run_strs(r"foo(\.\$)", "foo()"), Vec::<String>::new());
+        assert_eq!(run_strs(r"foo(\$)", "foo()"), vec!["foo()"]);
+        assert_eq!(run_strs(r"foo(\$)", "foo(a)"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_type_params() {
+        assert_eq!(run_strs("Foo", "Foo<T>"), vec!["Foo"]);
+        assert_eq!(run_strs("Foo<>", "Foo<T>"), vec!["Foo<T>"]);
+        assert_eq!(run_strs("<>", "Foo<T>"), vec!["<T>"]);
+        assert_eq!(run_strs("<>", "Foo<Bar<T>>"), vec!["<Bar<T>>", "<T>"]);
+        assert_eq!(run_strs("<Bar<>>", "Foo<Bar<T>>"), vec!["<Bar<T>>"]);
         assert_eq!(
-            run_strs("a \\? b c", "a b c"),
-            vec!["a b c", "b c"]
+            run_strs("<>", "Foo<{foo: string}>"),
+            vec!["<{foo: string}>"]
         );
-        assert_eq!(
-            run_strs("a \\? b c", "b c"),
-            vec!["b c"]
-        );
-        assert_eq!(
-            run_strs("d \\? b c", "b c"),
-            vec!["b c"]
-        );
+        assert_eq!(run_strs("<>", "Foo<>"), vec!["<>"]);
+        assert_eq!(run_strs("Foo\\.", "Foo<>"), vec!["Foo<>"]);
+
+        // Is this a good thing or not? This could also match "Foo<".
+        assert_eq!(run_strs("Foo<", "Foo<T>"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_non_matches() {
+        assert_eq!(run_strs("Foo", ""), Vec::<String>::new());
+        assert_eq!(run_strs("{}", ""), Vec::<String>::new());
+        assert_eq!(run_strs("\\.", ""), Vec::<String>::new());
+        assert_eq!(run_strs("Foo", "{}"), Vec::<String>::new());
+        assert_eq!(run_strs("{}", "Foo"), Vec::<String>::new());
     }
 }

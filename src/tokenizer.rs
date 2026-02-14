@@ -414,9 +414,7 @@ fn read_other(
                 {
                     if old_c == "," || old_c == ";" {
                         return QueryToken {
-                            ty: QueryTokenType::Standard(StandardTokenType::Symbol(
-                                c.to_string(),
-                            )),
+                            ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
                             span: iter.current_span(),
                         };
                     }
@@ -723,7 +721,11 @@ mod tests {
                 ),
                 q(QueryTokenType::Special(SpecialTokenType::End), 17, 18),
                 q(QueryTokenType::Special(SpecialTokenType::Or), 19, 20),
-                q(QueryTokenType::Special(SpecialTokenType::QuestionMark), 21, 22),
+                q(
+                    QueryTokenType::Special(SpecialTokenType::QuestionMark),
+                    21,
+                    22,
+                ),
             ],
             opts,
         );

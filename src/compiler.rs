@@ -183,7 +183,7 @@ impl Machine {
             ParsedAstMatcher::Regex(regex) => {
                 let end = self.state().id;
                 let start = self.state();
-                start.add_transition(end, Matcher::Regex(RegexEq(regex.clone())));
+                start.add_transition(end, Matcher::Regex(regex.clone()));
                 (start.id, end)
             }
             ParsedAstMatcher::Delimited { op, cp, content } => {

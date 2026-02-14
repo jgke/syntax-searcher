@@ -8,6 +8,7 @@ mod collection;
 
 mod argparse;
 mod compiler;
+mod multipeek_putbackn;
 mod options;
 mod parser;
 mod psi;

@@ -86,7 +86,6 @@ enum OptionCommand {
     NoTypeParameterParsing,
     Color(ColorChoice),
     DumpMachine,
-    PrintOptionsAndQuit,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -225,8 +224,6 @@ Options:
   -L, --follow                  Follow symlinks
   -a, --text                    Search binary files as if they were text
   --[no-]type-parameter-parsing Parse <> as type parameter delimiters
-  --options                     Print what options would have been used to
-                                parse FILE
 "#,
             filename
         );
@@ -240,33 +237,6 @@ fn print_langs() -> ! {
         println!("- {} [{}]", lang, defs.extensions.join(", "));
     }
     std::process::exit(0)
-}
-
-fn print_options(options: Options) -> ! {
-    println!(
-        r#"Using following parsing options:
-- String delimiters: {}
-- Single line comments: {}
-- Multi line comments: {}"#,
-        options
-            .string_characters
-            .into_iter()
-            .collect::<Vec<_>>()
-            .join(", "),
-        options
-            .single_line_comments
-            .into_iter()
-            .collect::<Vec<_>>()
-            .join(", "),
-        options
-            .multi_line_comments
-            .iter()
-            .map(|(start, end)| format!("{} {}", start, end))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-
-    std::process::exit(0);
 }
 
 fn get_whole_arg<I: Iterator<Item = Arg>>(iter: &mut Peekable<I>) -> Option<OsString> {
@@ -466,8 +436,6 @@ fn parse_options<S: AsRef<OsStr>>(args: &[S]) -> (Vec<OptionCommand>, Vec<OsStri
             ArgRef::Long("no-type-parameter-parsing") => OptionCommand::NoTypeParameterParsing,
             ArgRef::Long("dump-machine") => OptionCommand::DumpMachine,
 
-            ArgRef::Long("options") => OptionCommand::PrintOptionsAndQuit,
-
             ArgRef::Positional => {
                 positionals.push(arg.entire_match());
                 continue;
@@ -500,12 +468,9 @@ impl Options {
     /// ```
     pub fn new<S: AsRef<OsStr>>(extension: &OsStr, args: &[S]) -> Options {
         let (cmds, positionals) = parse_options(args);
-        let print_and_quit = cmds
-            .iter()
-            .any(|c| matches!(c, OptionCommand::PrintOptionsAndQuit));
         let empty_osstring: OsString = "".to_string().into();
 
-        if positionals.is_empty() && !print_and_quit {
+        if positionals.is_empty() {
             println!("Missing required argument: PATTERN\n");
             print_help(false, 1);
         };
@@ -583,13 +548,8 @@ impl Options {
                 OptionCommand::NoTypeParameterParsing => opts.type_parameter_parsing = false,
                 OptionCommand::Color(choice) => opts.color = choice,
                 OptionCommand::DumpMachine => opts.dump_machine = true,
-                OptionCommand::PrintOptionsAndQuit => {}
                 OptionCommand::Language(_) => {}
             }
-        }
-
-        if print_and_quit {
-            print_options(opts);
         }
 
         opts.query = query;
@@ -654,5 +614,332 @@ mod tests {
     fn builtin_json_is_valid() {
         serde_json::from_str::<HashMap<String, BuiltinLanguageDefaults>>(BUILTIN_DATABASE)
             .expect("Failed to parse builtin JSON database, check config.json");
+    }
+
+    #[test]
+    fn multiple_paths() {
+        let options = Options::new("js".as_ref(), &["syns", "query", "a", "b", "c"]);
+        assert_eq!(options.query, "query");
+        assert_eq!(options.paths, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn lang_flag() {
+        let options = Options::new("".as_ref(), &["syns", "--lang", "c", "query", "file"]);
+        assert!(options.string_characters.contains("\""));
+        assert!(options.string_characters.contains("'"));
+        assert!(!options.string_characters.contains("`"));
+        assert!(options.single_line_comments.contains("//"));
+    }
+
+    #[test]
+    fn add_string_character_short() {
+        let options = Options::new("".as_ref(), &["syns", "-s", "|", "query", "file"]);
+        assert!(options.string_characters.contains("|"));
+    }
+
+    #[test]
+    fn add_string_character_long() {
+        let options = Options::new("".as_ref(), &["syns", "--string", "|", "query", "file"]);
+        assert!(options.string_characters.contains("|"));
+    }
+
+    #[test]
+    fn remove_string_character() {
+        let options = Options::new("".as_ref(), &["syns", "--no-string", "'", "query", "file"]);
+        assert!(!options.string_characters.contains("'"));
+        assert!(options.string_characters.contains("\""));
+    }
+
+    #[test]
+    fn add_single_comment_short() {
+        let options = Options::new("".as_ref(), &["syns", "-c", "#", "query", "file"]);
+        assert!(options.single_line_comments.contains("#"));
+    }
+
+    #[test]
+    fn add_single_comment_long() {
+        let options = Options::new("".as_ref(), &["syns", "--comment", "#", "query", "file"]);
+        assert!(options.single_line_comments.contains("#"));
+    }
+
+    #[test]
+    fn remove_single_comment() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--no-comment", "//", "query", "file"],
+        );
+        assert!(!options.single_line_comments.contains("//"));
+    }
+
+    #[test]
+    fn add_multi_comment_short() {
+        let options = Options::new("".as_ref(), &["syns", "-m", "<!--", "-->", "query", "file"]);
+        assert!(options
+            .multi_line_comments
+            .contains(&("<!--".to_string(), "-->".to_string())));
+    }
+
+    #[test]
+    fn add_multi_comment_long() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--multi", "<!--", "-->", "query", "file"],
+        );
+        assert!(options
+            .multi_line_comments
+            .contains(&("<!--".to_string(), "-->".to_string())));
+    }
+
+    #[test]
+    fn remove_multi_comment() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--no-multi", "/*", "*/", "query", "file"],
+        );
+        assert!(!options
+            .multi_line_comments
+            .contains(&("/*".to_string(), "*/".to_string())));
+    }
+
+    #[test]
+    fn add_block_separator_short() {
+        let options = Options::new("".as_ref(), &["syns", "-b", "do", "end", "query", "file"]);
+        assert!(options.block_openers.contains("do"));
+        assert!(options.block_closers.contains("end"));
+    }
+
+    #[test]
+    fn add_block_separator_long() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--block", "do", "end", "query", "file"],
+        );
+        assert!(options.block_openers.contains("do"));
+        assert!(options.block_closers.contains("end"));
+    }
+
+    #[test]
+    fn remove_block_opener() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--no-block-opener", "(", "query", "file"],
+        );
+        assert!(!options.block_openers.contains("("));
+        assert!(options.block_openers.contains("["));
+    }
+
+    #[test]
+    fn remove_block_closer() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--no-block-closer", ")", "query", "file"],
+        );
+        assert!(!options.block_closers.contains(")"));
+        assert!(options.block_closers.contains("]"));
+    }
+
+    #[test]
+    fn identifier_short() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "-i", "[a-z]", "[a-z0-9]", "query", "file"],
+        );
+        assert!(options.identifier_regex_start.is_match("a"));
+        assert!(!options.identifier_regex_start.is_match("A"));
+        assert!(options.identifier_regex_continue.is_match("1"));
+    }
+
+    #[test]
+    fn identifier_long() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--identifier", "[a-z]", "[a-z0-9]", "query", "file"],
+        );
+        assert!(options.identifier_regex_start.is_match("a"));
+        assert!(!options.identifier_regex_start.is_match("A"));
+    }
+
+    #[test]
+    fn only_files_matching() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--only-files-matching", "\\.rs$", "query", "file"],
+        );
+        let re = options.only_files_matching.unwrap();
+        assert!(re.is_match("main.rs"));
+        assert!(!re.is_match("main.js"));
+    }
+
+    #[test]
+    fn ignore_files_matching() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--ignore-files-matching", "\\.rs$", "query", "file"],
+        );
+        let re = options.ignore_files_matching.unwrap();
+        assert!(re.is_match("main.rs"));
+        assert!(!re.is_match("main.js"));
+    }
+
+    #[test]
+    fn only_matching_short() {
+        let options = Options::new("".as_ref(), &["syns", "-o", "query", "file"]);
+        assert!(options.only_matching);
+    }
+
+    #[test]
+    fn only_matching_long() {
+        let options = Options::new("".as_ref(), &["syns", "--only-matching", "query", "file"]);
+        assert!(options.only_matching);
+    }
+
+    #[test]
+    fn only_print_filenames_short() {
+        let options = Options::new("".as_ref(), &["syns", "-l", "query", "file"]);
+        assert!(options.only_print_filenames);
+    }
+
+    #[test]
+    fn only_print_filenames_long() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--only-print-filenames", "query", "file"],
+        );
+        assert!(options.only_print_filenames);
+    }
+
+    #[test]
+    fn dont_print_filenames_short() {
+        let options = Options::new("".as_ref(), &["syns", "-I", "query", "file"]);
+        assert!(options.dont_print_filenames);
+    }
+
+    #[test]
+    fn dont_print_filenames_long() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--dont-print-filenames", "query", "file"],
+        );
+        assert!(options.dont_print_filenames);
+    }
+
+    #[test]
+    fn follow_symlinks_short() {
+        let options = Options::new("".as_ref(), &["syns", "-L", "query", "file"]);
+        assert!(options.follow_symlinks);
+    }
+
+    #[test]
+    fn follow_symlinks_long() {
+        let options = Options::new("".as_ref(), &["syns", "--follow", "query", "file"]);
+        assert!(options.follow_symlinks);
+    }
+
+    #[test]
+    fn search_binary_short() {
+        let options = Options::new("".as_ref(), &["syns", "-a", "query", "file"]);
+        assert!(options.search_binary);
+    }
+
+    #[test]
+    fn search_binary_long() {
+        let options = Options::new("".as_ref(), &["syns", "--text", "query", "file"]);
+        assert!(options.search_binary);
+    }
+
+    #[test]
+    fn type_parameter_parsing_flag() {
+        let options = Options::new(
+            "".as_ref(),
+            &["syns", "--type-parameter-parsing", "query", "file"],
+        );
+        assert!(options.type_parameter_parsing);
+    }
+
+    #[test]
+    fn no_type_parameter_parsing_flag() {
+        let options = Options::new(
+            "".as_ref(),
+            &[
+                "syns",
+                "--type-parameter-parsing",
+                "--no-type-parameter-parsing",
+                "query",
+                "file",
+            ],
+        );
+        assert!(!options.type_parameter_parsing);
+    }
+
+    #[test]
+    fn color_flag() {
+        let options = Options::new("".as_ref(), &["syns", "--color", "query", "file"]);
+        assert_eq!(options.color, ColorChoice::Always);
+    }
+
+    #[test]
+    fn no_color_flag() {
+        let options = Options::new("".as_ref(), &["syns", "--no-color", "query", "file"]);
+        assert_eq!(options.color, ColorChoice::Never);
+    }
+
+    #[test]
+    fn dump_machine_flag() {
+        let options = Options::new("".as_ref(), &["syns", "--dump-machine", "query", "file"]);
+        assert!(options.dump_machine);
+    }
+
+    #[test]
+    fn default_options() {
+        let opts = Options::default();
+        assert!(opts.string_characters.contains("\""));
+        assert!(opts.string_characters.contains("'"));
+        assert!(opts.string_characters.contains("`"));
+        assert!(opts.single_line_comments.contains("//"));
+        assert!(opts
+            .multi_line_comments
+            .contains(&("/*".to_string(), "*/".to_string())));
+        assert!(opts.block_openers.contains("("));
+        assert!(opts.block_closers.contains(")"));
+        assert!(!opts.only_matching);
+        assert!(!opts.only_print_filenames);
+        assert!(!opts.dont_print_filenames);
+        assert!(!opts.follow_symlinks);
+        assert!(!opts.search_binary);
+        assert!(!opts.type_parameter_parsing);
+        assert!(opts.ranges);
+        assert_eq!(opts.color, ColorChoice::Auto);
+        assert!(!opts.dump_machine);
+    }
+
+    #[test]
+    fn extension_based_defaults() {
+        let options = Options::new("rs".as_ref(), &["syns", "query", "file"]);
+        // Rust uses " for strings but not ' or `
+        assert!(options.string_characters.contains("\""));
+        assert!(!options.string_characters.contains("`"));
+    }
+
+    #[test]
+    fn combined_flags() {
+        let options = Options::new(
+            "".as_ref(),
+            &[
+                "syns",
+                "-o",
+                "-l",
+                "-L",
+                "-a",
+                "--no-color",
+                "query",
+                "file",
+            ],
+        );
+        assert!(options.only_matching);
+        assert!(options.only_print_filenames);
+        assert!(options.follow_symlinks);
+        assert!(options.search_binary);
+        assert_eq!(options.color, ColorChoice::Never);
     }
 }

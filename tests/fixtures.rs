@@ -1,3 +1,4 @@
+use assert_cmd::cargo;
 use assert_cmd::prelude::*;
 use std::path::PathBuf;
 use std::process::Command;
@@ -6,7 +7,7 @@ use test_generator::test_resources;
 // for f in test-files/hello/*; do syns --no-color -o '\.' $f > tests/.fixtures/nocolor/$(basename $f); done
 #[test_resources("test-files/hello/*")]
 fn hello_world_langs_nocolor(file: &str) {
-    let mut cmd = Command::cargo_bin("syns").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!());
     cmd.arg("--no-color").arg("-o").arg("\\.").arg(file);
 
     let filename = file.split('/').next_back().unwrap();
@@ -22,7 +23,7 @@ fn hello_world_langs_nocolor(file: &str) {
 // for f in test-files/hello/*; do syns --color '\.' $f > tests/.fixtures/color/$(basename $f); done
 #[test_resources("test-files/hello/*")]
 fn hello_world_langs_color(file: &str) {
-    let mut cmd = Command::cargo_bin("syns").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!());
     cmd.arg("--color").arg("\\.").arg(file);
 
     let filename = file.split('/').next_back().unwrap();

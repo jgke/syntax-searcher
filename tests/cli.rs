@@ -1,3 +1,4 @@
+use assert_cmd::cargo;
 use assert_cmd::prelude::*; // Add methods on commands
 use predicates::prelude::*; // Used for writing assertions
 use regex::Regex;
@@ -8,7 +9,7 @@ fn run(path: &str, query: &str) -> Command {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push(path);
 
-    let mut cmd = Command::cargo_bin("syns").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!());
     cmd.arg("--no-color").arg(query).arg(d);
     cmd
 }

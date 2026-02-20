@@ -321,12 +321,18 @@ pub fn optimize(machine: &mut Machine) {
             if i == ACCEPT.id || remap.contains_key(&i) {
                 continue;
             }
-            for &j in &ids[idx+1..] {
+            for &j in &ids[idx + 1..] {
                 if j == ACCEPT.id || remap.contains_key(&j) {
                     continue;
                 }
-                let set_i = machine.states[&i].transitions.iter().collect::<HashSet<_>>();
-                let set_j = machine.states[&j].transitions.iter().collect::<HashSet<_>>();
+                let set_i = machine.states[&i]
+                    .transitions
+                    .iter()
+                    .collect::<HashSet<_>>();
+                let set_j = machine.states[&j]
+                    .transitions
+                    .iter()
+                    .collect::<HashSet<_>>();
                 if set_i == set_j {
                     remap.insert(j, i);
                 }

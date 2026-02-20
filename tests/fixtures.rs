@@ -1,3 +1,5 @@
+//! Tests for various language defaults.
+
 use assert_cmd::cargo;
 use assert_cmd::prelude::*;
 use std::path::PathBuf;

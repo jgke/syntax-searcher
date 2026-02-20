@@ -332,4 +332,9 @@ mod tests {
         assert_eq!(run_strs("Foo", "{}"), Vec::<String>::new());
         assert_eq!(run_strs("{}", "Foo"), Vec::<String>::new());
     }
+
+    #[test]
+    fn test_unmatched_braces() {
+        assert_eq!(run_strs("()", "(()(}{{}}"), vec!["(()(}{{}}", "()", "(}"]);
+    }
 }

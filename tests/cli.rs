@@ -1,3 +1,5 @@
+//! Tests for CLI output.
+
 use assert_cmd::cargo;
 use assert_cmd::prelude::*; // Add methods on commands
 use predicates::prelude::*; // Used for writing assertions

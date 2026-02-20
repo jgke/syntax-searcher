@@ -106,18 +106,18 @@ Query language
 The query language is parsed with the same options as the source file. Query patterns
 can be matched using backslash. The following commands are available:
 
-| Pattern                   | Description                                                                             |
-|---------------------------|-----------------------------------------------------------------------------------------|
-| `foo`                     | Match an identifier `foo`                                                               |
-| `foo bar`                 | Match an identifier `foo`, followed by whitespace and/or comments, and identifier `bar` |
-| `\.`                      | Match any token or paren-delimited tree.                                                |
-| `\+`                      | Match the previous pattern one or more times.                                           |
-| `\*`                      | Match the previous pattern zero or more times.                                          |
-| `\?`                      | Match the previous pattern zero or one times.                                           |
-| `\"regex"`                | Match any string literal with the regex pattern `regex`.                                |
-| `\(pattern\)`             | Group several patterns. Useful for eg. `\(a a\)\+`.                                     |
-| `\$`                      | Match the end of a block.                                                               |
-| `p1 p2 \| p3 p4 \| p5 p6` | Match p1 and p2, p3 and p4 OR p5 and p6.                                                |
+| Pattern                       | Description                                                                             |
+|-------------------------------|-----------------------------------------------------------------------------------------|
+| `foo`                         | Match an identifier `foo`                                                               |
+| `foo bar`                     | Match an identifier `foo`, followed by whitespace and/or comments, and identifier `bar` |
+| `\.`                          | Match any token or paren-delimited tree.                                                |
+| `\+`                          | Match the previous pattern one or more times.                                           |
+| `\*`                          | Match the previous pattern zero or more times.                                          |
+| `\?`                          | Match the previous pattern zero or one times.                                           |
+| `\"regex"`                    | Match any string literal with the regex pattern `regex`.                                |
+| `\(pattern\)`                 | Group several patterns. Useful for eg. `\(a a\)\+`.                                     |
+| `\$`                          | Match the end of a block.                                                               |
+| `p1 p2 \\\| p3 p4 \\\| p5 p6` | Match p1 and p2, p3 and p4 OR p5 and p6.                                                |
 
 Testing
 =======

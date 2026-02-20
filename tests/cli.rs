@@ -253,3 +253,22 @@ fn test_follow_symlink() {
         }
     }
 }
+
+#[test]
+fn test_dump_machine() {
+    let mut cmd = run("test-files/main.c", "a");
+    cmd.arg("--dump-machine");
+
+    cmd.assert().stdout(
+        r#"digraph finite_state_machine {
+  rankdir=LR;
+  node [shape = diamond]; 1;
+  node [shape = doublecircle]; 0;
+  node [shape = circle];
+  "1" -> "0" [label = "token Identifier(\"a\")"];
+  0
+}
+
+"#,
+    );
+}

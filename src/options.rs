@@ -113,6 +113,7 @@ lazy_static! {
         let mut res = HashMap::new();
         let default_opts = Options::default();
 
+        #[allow(clippy::iter_over_hash_type)]
         for ty in PARSED_DB.values() {
             let opts = Options {
                 string_characters: ty.strings.iter().cloned().collect(),

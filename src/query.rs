@@ -1,6 +1,6 @@
 //! Query handling and matching.
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use log::debug;
 
@@ -37,10 +37,10 @@ impl Query {
         let mut current_states = initials
             .iter()
             .map(|state| (0, *state))
-            .collect::<HashSet<_>>();
+            .collect::<BTreeSet<_>>();
         let mut longest_match: Option<&'a [Ast]> = None;
         while !current_states.is_empty() {
-            let mut next_states = HashSet::new();
+            let mut next_states = BTreeSet::new();
             for (left_pos, state) in current_states {
                 for (matcher, next_state) in &self.machine.states[&state].transitions {
                     match (left.get(left_pos), matcher) {

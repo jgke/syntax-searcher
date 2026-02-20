@@ -28,5 +28,10 @@ test-generator = "0.3.1"
 name = "benches"
 harness = false
 
- [lints.rust]
- unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+missing_docs = "warn"
+
+[lints.clippy]
+unwrap_used = "warn"
+iter_over_hash_type = "warn"

@@ -1,5 +1,6 @@
 //! Non-deterministic finite automaton compiler.
 
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::debug;
 use std::collections::{HashMap, HashSet};
@@ -10,7 +11,7 @@ use crate::tokenizer::StandardTokenType;
 use crate::wrappers::RegexEq;
 
 /// Token matchers.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Matcher {
     /// Match a simple token.
     Token(StandardTokenType),
@@ -53,20 +54,10 @@ pub struct Machine {
     pub states: HashMap<usize, State>,
 }
 
-impl Matcher {
-    /// Format the matcher as a dot edge label
-    pub fn to_dot_condition(&self) -> String {
-        (match self {
-            Matcher::Token(t) => format!("token {:?}", t),
-            Matcher::Delimited { op, cp, start } => format!("delim {:?} {:?} {}", op, cp, start),
-            Matcher::Any => "*".to_string(),
-            Matcher::End => "$".to_string(),
-            Matcher::Regex(r) => format!("r\"{}\"", r.as_str()),
-            Matcher::Epsilon => "e".to_string(),
-            Matcher::Accept => "accept".to_string(),
-        })
-        .replace('"', "\\\"")
-    }
+static INDEX: AtomicUsize = AtomicUsize::new(0);
+
+fn index() -> usize {
+    INDEX.fetch_add(1, Ordering::Relaxed)
 }
 
 impl State {
@@ -82,8 +73,6 @@ impl State {
     }
 }
 
-static INDEX: AtomicUsize = AtomicUsize::new(0);
-
 lazy_static! {
     static ref ACCEPT: State = {
         let id = index();
@@ -92,10 +81,6 @@ lazy_static! {
             transitions: vec![(Matcher::Accept, id)],
         }
     };
-}
-
-fn index() -> usize {
-    INDEX.fetch_add(1, Ordering::Relaxed)
 }
 
 impl Machine {
@@ -228,111 +213,16 @@ impl Machine {
             (state, state)
         }
     }
-
-    fn list_symbols(
-        &self,
-        start_from: usize,
-        prefix: &str,
-        used: &mut HashSet<usize>,
-    ) -> (String, Vec<usize>) {
-        let id = start_from;
-        if id == ACCEPT.id || used.contains(&id) {
-            return ("".to_string(), vec![]);
-        };
-        used.insert(id);
-        let mut output = String::new();
-        let mut out_ids = vec![];
-        for (matcher, target_id) in &self.states[&id].transitions {
-            match matcher {
-                Matcher::Delimited { start, .. } => {
-                    let new_prefix = format!("{}{}_", prefix, id);
-                    output += &format!(
-                        "  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n",
-                        prefix,
-                        id,
-                        new_prefix,
-                        start,
-                        matcher.to_dot_condition()
-                    );
-                    let (edges, new_outs) = self.list_symbols(*start, &new_prefix, used);
-                    output += &edges;
-                    for out in new_outs {
-                        output += &format!(
-                            "  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n",
-                            new_prefix,
-                            out,
-                            prefix,
-                            target_id,
-                            Matcher::Epsilon.to_dot_condition()
-                        );
-                    }
-
-                    if id != ACCEPT.id {
-                        let (edges, mut new_outs) = self.list_symbols(*target_id, prefix, used);
-                        output += &edges;
-                        out_ids.append(&mut new_outs);
-                    }
-                }
-                _ => {
-                    if *target_id == ACCEPT.id {
-                        output += &format!(
-                            "  \"{}{}\" -> \"{}\" [label = \"{}\"];\n",
-                            prefix,
-                            id,
-                            target_id,
-                            matcher.to_dot_condition()
-                        );
-                        out_ids.push(id);
-                    } else {
-                        output += &format!(
-                            "  \"{}{}\" -> \"{}{}\" [label = \"{}\"];\n",
-                            prefix,
-                            id,
-                            prefix,
-                            target_id,
-                            matcher.to_dot_condition()
-                        );
-                    }
-
-                    if id != ACCEPT.id {
-                        let (edges, mut new_outs) = self.list_symbols(*target_id, prefix, used);
-                        output += &edges;
-                        out_ids.append(&mut new_outs);
-                    }
-                }
-            }
-        }
-        (output, out_ids)
-    }
-
-    /// Convert the state machine into a dot graph
-    pub fn to_dot_graph(&self) -> String {
-        let mut used = HashSet::new();
-        let mut output = "digraph finite_state_machine {\n".to_string();
-        output += "  rankdir=LR;\n";
-        output += &format!("  node [shape = diamond]; {};\n", self.initial);
-        output += &format!("  node [shape = doublecircle]; {};\n", ACCEPT.id);
-        output += "  node [shape = circle];\n";
-        output += &self.list_symbols(self.initial, "", &mut used).0;
-        output += &self
-            .states
-            .keys()
-            .map(|id| {
-                if !used.contains(id) {
-                    format!("{} ", id)
-                } else {
-                    "".to_string()
-                }
-            })
-            .collect::<String>();
-        output += "}\n";
-        output
-    }
 }
 
 /// Optimize the state machine by removing unnecessary states and edges.
 pub fn optimize(machine: &mut Machine) {
-    let ids = machine.states.keys().copied().collect::<Vec<usize>>();
+    let ids = machine
+        .states
+        .keys()
+        .copied()
+        .sorted()
+        .collect::<Vec<usize>>();
 
     // convert  a[t] -> b[e] -> c to a[t] -> c
     for id in &ids {
@@ -343,6 +233,7 @@ pub fn optimize(machine: &mut Machine) {
             continue;
         }
         if let (Matcher::Epsilon, new_id) = machine.states[id].transitions[0] {
+            #[allow(clippy::iter_over_hash_type)]
             for state in &mut machine.states.values_mut() {
                 for (_, old_id) in &mut state.transitions {
                     if old_id == id {
@@ -408,9 +299,103 @@ pub fn optimize(machine: &mut Machine) {
             }
         }
 
+        #[allow(clippy::iter_over_hash_type)]
         for id in to_remove {
             machine.states.remove(&id);
         }
+    }
+
+    // remove duplicate transitions
+    #[allow(clippy::iter_over_hash_type)]
+    for state in machine.states.values_mut() {
+        let mut seen = HashSet::new();
+        state.transitions.retain(|t| seen.insert(t.clone()));
+    }
+
+    // merge states with identical transition sets
+    {
+        let ids: Vec<usize> = machine.states.keys().copied().sorted().collect();
+        let mut remap: HashMap<usize, usize> = HashMap::new();
+
+        for (idx, &i) in ids.iter().enumerate() {
+            if i == ACCEPT.id || remap.contains_key(&i) {
+                continue;
+            }
+            for &j in &ids[idx+1..] {
+                if j == ACCEPT.id || remap.contains_key(&j) {
+                    continue;
+                }
+                let set_i = machine.states[&i].transitions.iter().collect::<HashSet<_>>();
+                let set_j = machine.states[&j].transitions.iter().collect::<HashSet<_>>();
+                if set_i == set_j {
+                    remap.insert(j, i);
+                }
+            }
+        }
+
+        #[allow(clippy::iter_over_hash_type)]
+        for state in machine.states.values_mut() {
+            for (matcher, target) in &mut state.transitions {
+                if let Some(&new_target) = remap.get(target) {
+                    *target = new_target;
+                }
+                if let Matcher::Delimited { start, .. } = matcher {
+                    if let Some(&new_start) = remap.get(start) {
+                        *start = new_start;
+                    }
+                }
+            }
+        }
+        if let Some(&new_initial) = remap.get(&machine.initial) {
+            machine.initial = new_initial;
+        }
+    }
+}
+
+/// Normalize a machine by remapping state IDs to 0-based sequential integers in
+/// ascending ID order, returning a new Machine with canonical IDs.
+fn normalize(machine: &Machine) -> Machine {
+    let mut ids: Vec<usize> = machine.states.keys().copied().collect();
+    ids.sort();
+    let id_map: HashMap<usize, usize> = ids
+        .iter()
+        .enumerate()
+        .map(|(new, &old)| (old, new))
+        .collect();
+
+    let states = ids
+        .iter()
+        .map(|&old_id| {
+            let new_id = id_map[&old_id];
+            let transitions = machine.states[&old_id]
+                .transitions
+                .iter()
+                .map(|(matcher, target)| {
+                    let new_matcher = if let Matcher::Delimited { op, cp, start } = matcher {
+                        Matcher::Delimited {
+                            op: op.clone(),
+                            cp: cp.clone(),
+                            start: id_map[start],
+                        }
+                    } else {
+                        matcher.clone()
+                    };
+                    (new_matcher, id_map[target])
+                })
+                .collect();
+            (
+                new_id,
+                State {
+                    id: new_id,
+                    transitions,
+                },
+            )
+        })
+        .collect();
+
+    Machine {
+        initial: id_map[&machine.initial],
+        states,
     }
 }
 
@@ -425,6 +410,79 @@ pub fn compile_query(query: Vec<ParsedAstMatcher>) -> Machine {
         .get_mut(&end)
         .expect("Internal error when compiling query")
         .add_transition(ACCEPT.id, Matcher::Epsilon);
-    optimize(&mut machine);
-    machine
+
+    // TODO: this is a bit dumb
+    for _ in 0..5 {
+        optimize(&mut machine);
+    }
+
+    normalize(&machine)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::options::Options;
+    use crate::parser::parse_query;
+
+    fn compile(query: &str) -> Machine {
+        let options = Options::new("js".as_ref(), &["syns", query, "-"]);
+        let (parsed, _) = parse_query(query.as_bytes(), &options);
+        compile_query(parsed)
+    }
+
+    #[test]
+    fn compile_star_any() {
+        let machine = compile(r"\.\* a b");
+        let ident = |s: &str| Matcher::Token(StandardTokenType::Identifier(s.to_string()));
+        let mut states: Vec<(usize, Vec<(Matcher, usize)>)> = machine
+            .states
+            .iter()
+            .map(|(&id, s)| (id, s.transitions.clone()))
+            .collect();
+        states.sort_by_key(|(id, _)| *id);
+        assert_eq!(
+            states,
+            vec![
+                (0, vec![(Matcher::Accept, 0)]),
+                (1, vec![(Matcher::Any, 1), (ident("a"), 2)]),
+                (2, vec![(ident("b"), 0)]),
+            ]
+        );
+    }
+
+    #[test]
+    fn compile_or_group() {
+        let machine = compile(r"a \| (b c)");
+        let ident = |s: &str| Matcher::Token(StandardTokenType::Identifier(s.to_string()));
+        let sym = |s: &str| StandardTokenType::Symbol(s.to_string());
+        let mut states: Vec<(usize, Vec<(Matcher, usize)>)> = machine
+            .states
+            .iter()
+            .map(|(&id, s)| (id, s.transitions.clone()))
+            .collect();
+        states.sort_by_key(|(id, _)| *id);
+        assert_eq!(
+            states,
+            vec![
+                (0, vec![(Matcher::Accept, 0)]),
+                (
+                    1,
+                    vec![
+                        (ident("a"), 0),
+                        (
+                            Matcher::Delimited {
+                                op: sym("("),
+                                cp: Some(sym(")")),
+                                start: 2,
+                            },
+                            0,
+                        ),
+                    ],
+                ),
+                (2, vec![(ident("b"), 3)]),
+                (3, vec![(ident("c"), 0)]),
+            ]
+        );
+    }
 }

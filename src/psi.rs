@@ -10,7 +10,7 @@ pub trait PeekableCharIndicesExt {
     fn peek(&self) -> Option<char>;
 }
 
-impl<'a> PeekableCharIndicesExt for CharIndices<'a> {
+impl PeekableCharIndicesExt for CharIndices<'_> {
     fn peek(&self) -> Option<char> {
         self.as_str().chars().next()
     }

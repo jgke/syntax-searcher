@@ -12,6 +12,7 @@ pub mod options;
 pub mod parser;
 pub mod psi;
 pub mod query;
+pub mod render_machine;
 pub mod run;
 pub mod tokenizer;
 pub mod wrappers;

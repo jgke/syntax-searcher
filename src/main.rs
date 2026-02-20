@@ -1,6 +1,3 @@
-#![warn(missing_docs)]
-#![warn(clippy::unwrap_used)]
-
 //! syntax-searcher -- Generic source code searcher for paren-delimited languages.
 
 #[macro_use]
@@ -13,6 +10,7 @@ mod options;
 mod parser;
 mod psi;
 mod query;
+mod render_machine;
 mod run;
 mod tokenizer;
 mod wrappers;
@@ -109,7 +107,7 @@ fn main() -> io::Result<()> {
                     .or_insert_with(|| Query::new(options));
 
                 if options.dump_machine {
-                    println!("{}", query.machine.to_dot_graph());
+                    println!("{}", crate::render_machine::to_dot_graph(&query.machine));
                     break;
                 }
 

@@ -272,3 +272,12 @@ fn test_dump_machine() {
 "#,
     );
 }
+
+#[test]
+fn test_invalid_regex() {
+    let mut cmd = run("test-files/main.c", r#"\"[invalid""#);
+
+    cmd.assert().code(1).stdout(
+        "regex parse error:\n    [invalid\n    ^\nerror: unclosed character class\n",
+    );
+}

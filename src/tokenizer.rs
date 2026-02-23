@@ -584,6 +584,10 @@ mod tests {
             vec![t(StandardTokenType::Symbol("++".to_string()), 0, 1)],
         );
         test(
+            ">>",
+            vec![t(StandardTokenType::Symbol(">>".to_string()), 0, 1)],
+        );
+        test(
             "+ +",
             vec![
                 t(StandardTokenType::Symbol("+".to_string()), 0, 0),

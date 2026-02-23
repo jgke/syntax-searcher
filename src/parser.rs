@@ -79,15 +79,22 @@ fn last_matcher_is_identifier(res: &[ParsedAstMatcher]) -> bool {
     }
 }
 
-fn peek_is_type_params(
+enum PeekTokenKind<'a> {
+    Standard(&'a StandardTokenType),
+    Special,
+    Other,
+}
+
+fn peek_is_type_params_impl<T>(
     options: &Options,
-    iter: &mut MultiPeekPutBackN<impl Iterator<Item = StandardToken>>,
+    iter: &mut MultiPeekPutBackN<impl Iterator<Item = T>>,
+    classify: impl for<'a> Fn(&'a T) -> PeekTokenKind<'a>,
 ) -> bool {
     let mut depth = 1usize;
     loop {
         match iter.peek() {
-            Some(t) => match &t.ty {
-                StandardTokenType::Symbol(s) => {
+            Some(t) => match classify(t) {
+                PeekTokenKind::Standard(StandardTokenType::Symbol(s)) => {
                     for c in s.chars() {
                         match c {
                             '<' => depth += 1,
@@ -109,51 +116,33 @@ fn peek_is_type_params(
                         }
                     }
                 }
-                StandardTokenType::Identifier(_) => {}
-                _ => return false,
+                PeekTokenKind::Standard(_) | PeekTokenKind::Special => {}
+                PeekTokenKind::Other => return false,
             },
             None => return false,
         }
     }
 }
 
+fn peek_is_type_params(
+    options: &Options,
+    iter: &mut MultiPeekPutBackN<impl Iterator<Item = StandardToken>>,
+) -> bool {
+    peek_is_type_params_impl(options, iter, |t| match &t.ty {
+        StandardTokenType::Regex(_) => PeekTokenKind::Other,
+        ty => PeekTokenKind::Standard(ty),
+    })
+}
+
 fn peek_is_type_params_query(
     options: &Options,
     iter: &mut MultiPeekPutBackN<impl Iterator<Item = QueryToken>>,
 ) -> bool {
-    let mut depth = 1usize;
-    loop {
-        match iter.peek() {
-            Some(t) => match &t.ty {
-                QueryTokenType::Standard(StandardTokenType::Symbol(s)) => {
-                    for c in s.chars() {
-                        match c {
-                            '<' => depth += 1,
-                            '>' => {
-                                depth -= 1;
-                                if depth == 0 {
-                                    return true;
-                                }
-                            }
-                            c if options.is_open_paren(&c.to_string()) => depth += 1,
-                            c if options.is_close_paren(&c.to_string()) => {
-                                depth -= 1;
-                                if depth == 0 {
-                                    return false;
-                                }
-                            }
-                            ',' | '.' | ':' | ';' | '?' | '&' | '|' | '=' | '\'' | '+' => {}
-                            _ => return false,
-                        }
-                    }
-                }
-                QueryTokenType::Standard(StandardTokenType::Identifier(_)) => {}
-                QueryTokenType::Special(_) => {}
-                _ => return false,
-            },
-            None => return false,
-        }
-    }
+    peek_is_type_params_impl(options, iter, |t| match &t.ty {
+        QueryTokenType::Standard(StandardTokenType::Regex(_)) => PeekTokenKind::Other,
+        QueryTokenType::Standard(ty) => PeekTokenKind::Standard(ty),
+        QueryTokenType::Special(_) => PeekTokenKind::Special,
+    })
 }
 
 fn split_to_symbols(options: &Options, s: &str, mut span: Span) -> Vec<StandardToken> {
@@ -163,7 +152,9 @@ fn split_to_symbols(options: &Options, s: &str, mut span: Span) -> Vec<StandardT
     while let Some(c) = iter.next() {
         if options.is_open_paren(&c.to_string())
             || options.is_close_paren(&c.to_string())
-            || c == '<'
+            // Only split `<` when directly followed by `>` (empty type params `<>`).
+            // Compound operators like `<<`, `<=`, `<=<` must not be split.
+            || (c == '<' && iter.as_str().starts_with('>'))
             || c == '>'
         {
             res.push(StandardToken {
@@ -221,6 +212,21 @@ fn split_to_symbols(options: &Options, s: &str, mut span: Span) -> Vec<StandardT
     res
 }
 
+fn try_split_symbol(
+    options: &Options,
+    s: &str,
+    span: Span,
+    inside_type_param: bool,
+) -> Option<Vec<StandardToken>> {
+    if (inside_type_param || options.type_parameter_parsing) && s.chars().count() > 1 {
+        let syms = split_to_symbols(options, s, span);
+        if syms.len() > 1 {
+            return Some(syms);
+        }
+    }
+    None
+}
+
 fn parse(
     options: &Options,
     iter: &mut MultiPeekPutBackN<impl Iterator<Item = StandardToken>>,
@@ -237,15 +243,12 @@ fn parse(
             if recur && (options.is_close_paren(s) || is_close_type_param(s, inside_type_param)) {
                 break;
             }
-            if (inside_type_param || options.type_parameter_parsing) && s.chars().count() > 1 {
-                let syms = split_to_symbols(options, s, *span);
-                if syms.len() > 1 {
-                    assert!(iter.next().is_some());
-                    for sym in syms.into_iter().rev() {
-                        iter.put_back(sym);
-                    }
-                    continue;
+            if let Some(syms) = try_split_symbol(options, s, *span, inside_type_param) {
+                assert!(iter.next().is_some());
+                for sym in syms.into_iter().rev() {
+                    iter.put_back(sym);
                 }
+                continue;
             }
         }
         if let Some(token) = iter.next() {
@@ -259,27 +262,6 @@ fn parse(
                         op: token,
                         content,
                         cp,
-                    });
-                }
-                StandardTokenType::Symbol(c)
-                    if c == "<>" && options.type_parameter_parsing && last_is_identifier(&res) =>
-                {
-                    res.push(Ast::Delimited {
-                        op: StandardToken {
-                            ty: StandardTokenType::Symbol("<".to_string()),
-                            span: Span {
-                                lo: token.span.lo,
-                                hi: token.span.lo,
-                            },
-                        },
-                        content: vec![],
-                        cp: Some(StandardToken {
-                            ty: StandardTokenType::Symbol(">".to_string()),
-                            span: Span {
-                                lo: token.span.hi,
-                                hi: token.span.hi,
-                            },
-                        }),
                     });
                 }
                 StandardTokenType::Symbol(c) if c == "<" && options.type_parameter_parsing => {
@@ -363,18 +345,15 @@ fn parse_query_ast(
             if recur && (options.is_close_paren(s) || is_close_type_param(s, inside_type_param)) {
                 break;
             }
-            if (inside_type_param || options.type_parameter_parsing) && s.chars().count() > 1 {
-                let syms = split_to_symbols(options, s, *span);
-                if syms.len() > 1 {
-                    assert!(iter.next().is_some());
-                    for sym in syms.into_iter().rev() {
-                        iter.put_back(QueryToken {
-                            ty: QueryTokenType::Standard(sym.ty),
-                            span: sym.span,
-                        });
-                    }
-                    continue;
+            if let Some(syms) = try_split_symbol(options, s, *span, inside_type_param) {
+                assert!(iter.next().is_some());
+                for sym in syms.into_iter().rev() {
+                    iter.put_back(QueryToken {
+                        ty: QueryTokenType::Standard(sym.ty),
+                        span: sym.span,
+                    });
                 }
+                continue;
             }
         }
         if let Some(token) = iter.next() {
@@ -392,29 +371,6 @@ fn parse_query_ast(
                             .expect("Expected closing paren but got special token")
                     });
                     res.push(ParsedAstMatcher::Delimited { op, content, cp });
-                }
-                QueryTokenType::Standard(StandardTokenType::Symbol(c))
-                    if c == "<>"
-                        && options.type_parameter_parsing
-                        && last_matcher_is_identifier(&res) =>
-                {
-                    res.push(ParsedAstMatcher::Delimited {
-                        op: StandardToken {
-                            ty: StandardTokenType::Symbol("<".to_string()),
-                            span: Span {
-                                lo: token.span.lo,
-                                hi: token.span.lo,
-                            },
-                        },
-                        content: vec![],
-                        cp: Some(StandardToken {
-                            ty: StandardTokenType::Symbol(">".to_string()),
-                            span: Span {
-                                lo: token.span.hi,
-                                hi: token.span.hi,
-                            },
-                        }),
-                    });
                 }
                 QueryTokenType::Standard(StandardTokenType::Symbol(c))
                     if c == "<" && options.type_parameter_parsing =>
@@ -521,6 +477,229 @@ pub fn parse_query<R: Read>(
 }
 
 #[cfg(test)]
+macro_rules! shared_parser_tests {
+    /* Tests shared between `tests_ast` and `tests_query`. */
+    () => {
+        #[test]
+        fn parse_type_parameters() {
+            assert_eq!(
+                strip_spans(&parse_str("const a: Foo<T>; if(a < b) { foo<T>(); }", "js")),
+                vec![
+                    ident("const"),
+                    ident("a"),
+                    sym(":"),
+                    ident("Foo"),
+                    delim("<", vec![ident("T")], ">"),
+                    sym(";"),
+                    ident("if"),
+                    delim("(", vec![ident("a"), sym("<"), ident("b")], ")"),
+                    delim(
+                        "{",
+                        vec![
+                            ident("foo"),
+                            delim("<", vec![ident("T")], ">"),
+                            delim("(", vec![], ")"),
+                            sym(";"),
+                        ],
+                        "}"
+                    ),
+                ]
+            );
+        }
+
+        #[test]
+        fn not_type_params() {
+            assert_eq!(
+                strip_spans(&parse_str("a << b", "js")),
+                vec![ident("a"), sym("<<"), ident("b")]
+            );
+            assert_eq!(
+                strip_spans(&parse_str("a <=< b", "js")),
+                vec![ident("a"), sym("<=<"), ident("b")]
+            );
+        }
+
+        #[test]
+        fn rust_type_params() {
+            assert_eq!(
+                strip_spans(&parse_str("Vec::<usize>::new();", "rs")),
+                vec![
+                    ident("Vec"),
+                    sym("::"),
+                    delim("<", vec![ident("usize")], ">"),
+                    sym("::"),
+                    ident("new"),
+                    delim("(", vec![], ")"),
+                    sym(";"),
+                ]
+            );
+        }
+
+        #[test]
+        fn type_params_query() {
+            assert_eq!(
+                strip_spans(&parse_str("Foo<Bar<T>>", "js")),
+                vec![
+                    ident("Foo"),
+                    delim(
+                        "<",
+                        vec![ident("Bar"), delim("<", vec![ident("T")], ">")],
+                        ">"
+                    ),
+                ]
+            );
+        }
+
+        #[test]
+        fn rust_type_params_query_2() {
+            assert_eq!(
+                strip_spans(&parse_str("Iter<impl Iterator<Item = Foo + 'a>>", "rs")),
+                vec![
+                    ident("Iter"),
+                    delim(
+                        "<",
+                        vec![
+                            ident("impl"),
+                            ident("Iterator"),
+                            delim(
+                                "<",
+                                vec![
+                                    ident("Item"),
+                                    sym("="),
+                                    ident("Foo"),
+                                    sym("+"),
+                                    sym("'"),
+                                    ident("a"),
+                                ],
+                                ">"
+                            ),
+                        ],
+                        ">"
+                    ),
+                ]
+            );
+        }
+
+        #[test]
+        fn parse_braces() {
+            assert_eq!(
+                strip_spans(&parse_str("foo { bar(); }", "js")),
+                vec![
+                    ident("foo"),
+                    delim(
+                        "{",
+                        vec![ident("bar"), delim("(", vec![], ")"), sym(";")],
+                        "}"
+                    ),
+                ]
+            );
+        }
+
+        #[test]
+        fn complex_type_params() {
+            assert_eq!(
+                strip_spans(&parse_str(
+                    "a: Bar<Foo<T>>; b: Foo<Bar<{foo: string[]}>>",
+                    "js"
+                )),
+                vec![
+                    ident("a"),
+                    sym(":"),
+                    ident("Bar"),
+                    delim(
+                        "<",
+                        vec![ident("Foo"), delim("<", vec![ident("T")], ">")],
+                        ">"
+                    ),
+                    sym(";"),
+                    ident("b"),
+                    sym(":"),
+                    ident("Foo"),
+                    delim(
+                        "<",
+                        vec![
+                            ident("Bar"),
+                            delim(
+                                "<",
+                                vec![delim(
+                                    "{",
+                                    vec![
+                                        ident("foo"),
+                                        sym(":"),
+                                        ident("string"),
+                                        delim("[", vec![], "]"),
+                                    ],
+                                    "}"
+                                )],
+                                ">"
+                            ),
+                        ],
+                        ">"
+                    ),
+                ]
+            );
+        }
+
+        #[test]
+        fn type_param_query() {
+            // This doesn't happen in source code, but is a relevant query
+            assert_eq!(
+                strip_spans(&parse_str("Foo<>", "js")),
+                vec![ident("Foo"), delim("<", vec![], ">"),]
+            );
+        }
+
+        #[test]
+        fn constant_type_params() {
+            assert_eq!(
+                strip_spans(&parse_str("Foo<1>", "js")),
+                vec![
+                    ident("Foo"),
+                    delim("<", vec![tok(StandardTokenType::Integer(1)),], ">"),
+                ]
+            );
+            assert_eq!(
+                strip_spans(&parse_str("Foo<1.1>", "js")),
+                vec![
+                    ident("Foo"),
+                    delim(
+                        "<",
+                        vec![tok(StandardTokenType::Float(crate::wrappers::Float(1.1))),],
+                        ">"
+                    ),
+                ]
+            );
+            assert_eq!(
+                strip_spans(&parse_str(r#"Foo<"s">"#, "js")),
+                vec![
+                    ident("Foo"),
+                    delim(
+                        "<",
+                        vec![tok(StandardTokenType::StringLiteral("s".to_string())),],
+                        ">"
+                    ),
+                ]
+            );
+        }
+
+        #[test]
+        fn not_type_param() {
+            assert_eq!(
+                strip_spans(&parse_str("Foo<1-2>", "js")),
+                vec![
+                    ident("Foo"),
+                    sym("<"),
+                    tok(StandardTokenType::Integer(1)),
+                    sym("-"),
+                    tok(StandardTokenType::Integer(2)),
+                    sym(">"),
+                ]
+            );
+        }
+    };
+}
+
+#[cfg(test)]
 mod tests_ast {
     use super::*;
 
@@ -589,118 +768,7 @@ mod tests_ast {
         tok(StandardTokenType::Symbol(s.to_string()))
     }
 
-    #[test]
-    fn parse_braces() {
-        let ast = parse_str("foo { bar(); }", "js");
-        assert_eq!(
-            strip_spans(&ast),
-            vec![
-                ident("foo"),
-                delim(
-                    "{",
-                    vec![ident("bar"), delim("(", vec![], ")"), sym(";"),],
-                    "}"
-                ),
-            ]
-        );
-    }
-
-    #[test]
-    fn parse_type_parameters() {
-        let ast = parse_str("const a: Foo<T>; if(a < b) { foo<T>(); }", "js");
-        assert_eq!(
-            strip_spans(&ast),
-            vec![
-                ident("const"),
-                ident("a"),
-                sym(":"),
-                ident("Foo"),
-                delim("<", vec![ident("T")], ">"),
-                sym(";"),
-                ident("if"),
-                delim("(", vec![ident("a"), sym("<"), ident("b"),], ")"),
-                delim(
-                    "{",
-                    vec![
-                        ident("foo"),
-                        delim("<", vec![ident("T")], ">"),
-                        delim("(", vec![], ")"),
-                        sym(";"),
-                    ],
-                    "}"
-                ),
-            ]
-        );
-    }
-
-    #[test]
-    fn complex_type_params() {
-        let ast = parse_str("a: Bar<Foo<T>>; b: Foo<Bar<{foo: string[]}>>", "js");
-
-        assert_eq!(
-            strip_spans(&ast),
-            vec![
-                ident("a"),
-                sym(":"),
-                ident("Bar"),
-                delim(
-                    "<",
-                    vec![ident("Foo"), delim("<", vec![ident("T")], ">"),],
-                    ">"
-                ),
-                sym(";"),
-                ident("b"),
-                sym(":"),
-                ident("Foo"),
-                delim(
-                    "<",
-                    vec![
-                        ident("Bar"),
-                        delim(
-                            "<",
-                            vec![delim(
-                                "{",
-                                vec![
-                                    ident("foo"),
-                                    sym(":"),
-                                    ident("string"),
-                                    delim("[", vec![], "]"),
-                                ],
-                                "}"
-                            ),],
-                            ">"
-                        ),
-                    ],
-                    ">"
-                ),
-            ]
-        );
-    }
-
-    #[test]
-    fn not_type_params() {
-        let ast = parse_str("a =< b", "js");
-
-        assert_eq!(strip_spans(&ast), vec![ident("a"), sym("=<"), ident("b"),]);
-    }
-
-    #[test]
-    fn rust_type_params_query() {
-        let ast = parse_str("Vec::<usize>::new();", "rs");
-
-        assert_eq!(
-            strip_spans(&ast),
-            vec![
-                ident("Vec"),
-                sym("::"),
-                delim("<", vec![ident("usize")], ">"),
-                sym("::"),
-                ident("new"),
-                delim("(", vec![], ")"),
-                sym(";"),
-            ]
-        );
-    }
+    shared_parser_tests!();
 }
 
 #[cfg(test)]
@@ -792,96 +860,100 @@ mod tests_query {
         tok(StandardTokenType::Symbol(s.to_string()))
     }
 
+    shared_parser_tests!();
+
     #[test]
-    fn parse_type_parameters() {
-        let ast = parse_str("const a: Foo<T>; if(a < b) { foo<T>(); }", "js");
+    fn type_param_query_special() {
+        // This doesn't happen in source code, but is a relevant query
         assert_eq!(
-            strip_spans(&ast),
+            strip_spans(&parse_str(r"Foo<\.>", "js")),
+            vec![ident("Foo"), delim("<", vec![ParsedAstMatcher::Any], ">"),]
+        );
+    }
+
+    #[test]
+    fn test_query_any() {
+        assert_eq!(
+            strip_spans(&parse_str(r"a\.b", "js")),
+            vec![ident("a"), ParsedAstMatcher::Any, ident("b")]
+        );
+    }
+
+    #[test]
+    fn test_query_star() {
+        assert_eq!(
+            strip_spans(&parse_str(r"a\.\*b", "js")),
             vec![
-                ident("const"),
                 ident("a"),
-                sym(":"),
-                ident("Foo"),
-                delim("<", vec![ident("T")], ">"),
-                sym(";"),
-                ident("if"),
-                delim("(", vec![ident("a"), sym("<"), ident("b"),], ")"),
-                delim(
-                    "{",
-                    vec![
-                        ident("foo"),
-                        delim("<", vec![ident("T")], ">"),
-                        delim("(", vec![], ")"),
-                        sym(";"),
-                    ],
-                    "}"
-                ),
+                ParsedAstMatcher::Star(Box::new(ParsedAstMatcher::Any)),
+                ident("b"),
             ]
         );
     }
 
     #[test]
-    fn type_params_query() {
-        let ast = parse_str("Foo<Bar<T>>", "js");
-
+    fn test_query_plus() {
         assert_eq!(
-            strip_spans(&ast),
+            strip_spans(&parse_str(r"a\.\+b", "js")),
             vec![
-                ident("Foo"),
-                delim(
-                    "<",
-                    vec![ident("Bar"), delim("<", vec![ident("T")], ">"),],
-                    ">"
-                ),
+                ident("a"),
+                ParsedAstMatcher::Plus(Box::new(ParsedAstMatcher::Any)),
+                ident("b"),
             ]
         );
     }
 
     #[test]
-    fn not_type_params() {
-        let ast = parse_str("a =< b", "js");
-
-        assert_eq!(strip_spans(&ast), vec![ident("a"), sym("=<"), ident("b"),]);
-    }
-
-    #[test]
-    fn rust_type_params_query() {
-        let ast = parse_str("Vec::<usize>::new();", "rs");
-
+    fn test_query_question_mark() {
         assert_eq!(
-            strip_spans(&ast),
+            strip_spans(&parse_str(r"a\.\?b", "js")),
             vec![
-                ident("Vec"),
-                sym("::"),
-                delim("<", vec![ident("usize")], ">"),
-                sym("::"),
-                ident("new"),
-                delim("(", vec![], ")"),
-                sym(";"),
+                ident("a"),
+                ParsedAstMatcher::QuestionMark(Box::new(ParsedAstMatcher::Any)),
+                ident("b"),
             ]
         );
     }
 
     #[test]
-    fn rust_type_params_query_2() {
-        let ast = parse_str("Iter<impl Iterator<Item = Foo + 'a>>", "rs");
-
+    fn test_query_end() {
         assert_eq!(
-            strip_spans(&ast),
+            strip_spans(&parse_str(r"a\$", "js")),
+            vec![ident("a"), ParsedAstMatcher::End]
+        );
+    }
+
+    #[test]
+    fn test_query_or() {
+        assert_eq!(
+            strip_spans(&parse_str(r"a\|b", "js")),
+            vec![ParsedAstMatcher::Or(
+                Box::new(ident("a")),
+                Box::new(ParsedAstMatcher::Nested(vec![ident("b")])),
+            )]
+        );
+    }
+
+    #[test]
+    fn test_query_regex() {
+        assert_eq!(
+            strip_spans(&parse_str(r#"a\"foo.*"b"#, "js")),
             vec![
-                ident("Iter"),
-                delim("<", vec![
-                ident("impl"),
-                ident("Iterator"),
-                delim("<", vec![
-                    ident("Item"),
-                    sym("="),
-                    ident("Foo"),
-                    sym("+"),
-                    sym("'"),
-                    ident("a"),
-                ], ">"),
-                ], ">"),
+                ident("a"),
+                ParsedAstMatcher::Regex(RegexEq(regex::Regex::new("foo.*").unwrap())),
+                ident("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_query_nested() {
+        assert_eq!(
+            strip_spans(&parse_str(r"a\(b c\)d", "js")),
+            vec![
+                ident("a"),
+                ParsedAstMatcher::Nested(vec![ident("b"), ident("c")]),
+                ident("d"),
             ]
         );
     }

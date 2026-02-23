@@ -22,7 +22,6 @@ macro_rules! writeln_colored {
     };}
 }
 
-#[cfg(not(tarpaulin_include))]
 /// Parse `file` with `options` and print all matches.
 pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) -> bool {
     /* Colors from ripgrep's printer crate */

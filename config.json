@@ -100,7 +100,8 @@
         "strings": ["\""],
         "single_comments": ["//"],
         "multi_comments": [["/*", "*/"]],
-        "regex": []
+        "regex": [],
+        "type_parameter_parsing": true
     },
     "visualbasic": {
         "identifier": ["[\\p{XID_Start}_]", "\\p{XID_Continue}"],

@@ -54,19 +54,29 @@ fn is_close_type_param(c: &str, inside_type_param: bool) -> bool {
 }
 
 fn last_is_identifier(res: &[Ast]) -> bool {
-    res.is_empty()
-        || matches!(
-            res.last(),
-            Some(Ast::Token(t)) if matches!(&t.ty, StandardTokenType::Identifier(_))
-        )
+    match res.last() {
+        None => true,
+        Some(Ast::Token(t)) => match &t.ty {
+            StandardTokenType::Identifier(_) => true,
+            StandardTokenType::Symbol(s) if s == "::" => last_is_identifier(&res[..res.len() - 1]),
+            _ => false,
+        },
+        _ => false,
+    }
 }
 
 fn last_matcher_is_identifier(res: &[ParsedAstMatcher]) -> bool {
-    res.is_empty()
-        || matches!(
-            res.last(),
-            Some(ParsedAstMatcher::Token(t)) if matches!(&t.ty, StandardTokenType::Identifier(_))
-        )
+    match res.last() {
+        None => true,
+        Some(ParsedAstMatcher::Token(t)) => match &t.ty {
+            StandardTokenType::Identifier(_) => true,
+            StandardTokenType::Symbol(s) if s == "::" => {
+                last_matcher_is_identifier(&res[..res.len() - 1])
+            }
+            _ => false,
+        },
+        _ => false,
+    }
 }
 
 fn peek_is_type_params(
@@ -94,7 +104,7 @@ fn peek_is_type_params(
                                     return false;
                                 }
                             }
-                            ',' | '.' | ':' | ';' | '?' | '&' | '|' => {}
+                            ',' | '.' | ':' | ';' | '?' | '&' | '|' | '=' | '\'' | '+' => {}
                             _ => return false,
                         }
                     }
@@ -132,7 +142,7 @@ fn peek_is_type_params_query(
                                     return false;
                                 }
                             }
-                            ',' | '.' | ':' | ';' | '?' | '&' | '|' => {}
+                            ',' | '.' | ':' | ';' | '?' | '&' | '|' | '=' | '\'' | '+' => {}
                             _ => return false,
                         }
                     }
@@ -168,8 +178,40 @@ fn split_to_symbols(options: &Options, s: &str, mut span: Span) -> Vec<StandardT
                 hi: span.hi,
             };
         } else {
+            let remaining = format!("{}{}", c, iter.as_str());
+            // Also strip a trailing `<` or `>` when the prefix consists only of
+            // type-path connector chars (e.g. "::<" → "::" + "<").
+            if let Some(last_char) = remaining.chars().last() {
+                if last_char == '<' || last_char == '>' {
+                    let prefix = &remaining[..remaining.len() - last_char.len_utf8()];
+                    if prefix
+                        .chars()
+                        .all(|pc| matches!(pc, ',' | '.' | ':' | ';' | '?' | '&' | '|'))
+                    {
+                        if !prefix.is_empty() {
+                            let plen = prefix.chars().count();
+                            res.push(StandardToken {
+                                ty: StandardTokenType::Symbol(prefix.to_string()),
+                                span: Span {
+                                    lo: span.lo,
+                                    hi: span.lo + plen - 1,
+                                },
+                            });
+                            span.lo += plen;
+                        }
+                        res.push(StandardToken {
+                            ty: StandardTokenType::Symbol(last_char.to_string()),
+                            span: Span {
+                                lo: span.lo,
+                                hi: span.lo,
+                            },
+                        });
+                        break;
+                    }
+                }
+            }
             res.push(StandardToken {
-                ty: StandardTokenType::Symbol(format!("{}{}", c, iter.as_str())),
+                ty: StandardTokenType::Symbol(remaining),
                 span,
             });
             break;
@@ -195,7 +237,7 @@ fn parse(
             if recur && (options.is_close_paren(s) || is_close_type_param(s, inside_type_param)) {
                 break;
             }
-            if inside_type_param && s.chars().count() > 1 {
+            if (inside_type_param || options.type_parameter_parsing) && s.chars().count() > 1 {
                 let syms = split_to_symbols(options, s, *span);
                 if syms.len() > 1 {
                     assert!(iter.next().is_some());
@@ -321,7 +363,7 @@ fn parse_query_ast(
             if recur && (options.is_close_paren(s) || is_close_type_param(s, inside_type_param)) {
                 break;
             }
-            if inside_type_param && s.chars().count() > 1 {
+            if (inside_type_param || options.type_parameter_parsing) && s.chars().count() > 1 {
                 let syms = split_to_symbols(options, s, *span);
                 if syms.len() > 1 {
                     assert!(iter.next().is_some());
@@ -634,6 +676,31 @@ mod tests_ast {
             ]
         );
     }
+
+    #[test]
+    fn not_type_params() {
+        let ast = parse_str("a =< b", "js");
+
+        assert_eq!(strip_spans(&ast), vec![ident("a"), sym("=<"), ident("b"),]);
+    }
+
+    #[test]
+    fn rust_type_params_query() {
+        let ast = parse_str("Vec::<usize>::new();", "rs");
+
+        assert_eq!(
+            strip_spans(&ast),
+            vec![
+                ident("Vec"),
+                sym("::"),
+                delim("<", vec![ident("usize")], ">"),
+                sym("::"),
+                ident("new"),
+                delim("(", vec![], ")"),
+                sym(";"),
+            ]
+        );
+    }
 }
 
 #[cfg(test)]
@@ -766,6 +833,55 @@ mod tests_query {
                     vec![ident("Bar"), delim("<", vec![ident("T")], ">"),],
                     ">"
                 ),
+            ]
+        );
+    }
+
+    #[test]
+    fn not_type_params() {
+        let ast = parse_str("a =< b", "js");
+
+        assert_eq!(strip_spans(&ast), vec![ident("a"), sym("=<"), ident("b"),]);
+    }
+
+    #[test]
+    fn rust_type_params_query() {
+        let ast = parse_str("Vec::<usize>::new();", "rs");
+
+        assert_eq!(
+            strip_spans(&ast),
+            vec![
+                ident("Vec"),
+                sym("::"),
+                delim("<", vec![ident("usize")], ">"),
+                sym("::"),
+                ident("new"),
+                delim("(", vec![], ")"),
+                sym(";"),
+            ]
+        );
+    }
+
+    #[test]
+    fn rust_type_params_query_2() {
+        let ast = parse_str("Iter<impl Iterator<Item = Foo + 'a>>", "rs");
+
+        assert_eq!(
+            strip_spans(&ast),
+            vec![
+                ident("Iter"),
+                delim("<", vec![
+                ident("impl"),
+                ident("Iterator"),
+                delim("<", vec![
+                    ident("Item"),
+                    sym("="),
+                    ident("Foo"),
+                    sym("+"),
+                    sym("'"),
+                    ident("a"),
+                ], ">"),
+                ], ">"),
             ]
         );
     }

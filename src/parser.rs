@@ -655,7 +655,11 @@ macro_rules! shared_parser_tests {
                 strip_spans(&parse_str("Foo<1>", "js")),
                 vec![
                     ident("Foo"),
-                    delim("<", vec![tok(StandardTokenType::Integer(1)),], ">"),
+                    delim(
+                        "<",
+                        vec![tok(StandardTokenType::Number(crate::wrappers::Float(1.0))),],
+                        ">"
+                    ),
                 ]
             );
             assert_eq!(
@@ -664,7 +668,7 @@ macro_rules! shared_parser_tests {
                     ident("Foo"),
                     delim(
                         "<",
-                        vec![tok(StandardTokenType::Float(crate::wrappers::Float(1.1))),],
+                        vec![tok(StandardTokenType::Number(crate::wrappers::Float(1.1))),],
                         ">"
                     ),
                 ]
@@ -689,9 +693,9 @@ macro_rules! shared_parser_tests {
                 vec![
                     ident("Foo"),
                     sym("<"),
-                    tok(StandardTokenType::Integer(1)),
+                    tok(StandardTokenType::Number(crate::wrappers::Float(1.0))),
                     sym("-"),
-                    tok(StandardTokenType::Integer(2)),
+                    tok(StandardTokenType::Number(crate::wrappers::Float(2.0))),
                     sym(">"),
                 ]
             );

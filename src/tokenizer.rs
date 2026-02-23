@@ -34,10 +34,8 @@ pub enum SpecialTokenType {
 pub enum StandardTokenType {
     /// Identifier, eg. foo
     Identifier(String),
-    /// Integer, eg. 123
-    Integer(i128),
-    /// Floating point number, eg. 123.0
-    Float(Float),
+    /// Number, eg. 123 or 123.0
+    Number(Float),
     /// String literal, eg. "Hello"
     StringLiteral(String),
     /// Symbol, eg. +
@@ -274,8 +272,8 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
         .chars()
         .filter(|c| *c != '_')
         .collect::<String>();
-    if !content.contains('.') && !content.contains('e') {
-        let num = i128::from_str_radix(&content, radix)
+    let num: f64 = if !content.contains('.') && !content.contains('e') {
+        i128::from_str_radix(&content, radix)
             .ok()
             .or_else(|| {
                 i128::from_str_radix(
@@ -287,13 +285,9 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
                 )
                 .ok()
             })
-            .unwrap_or(0);
-        QueryToken {
-            ty: QueryTokenType::Standard(StandardTokenType::Integer(num)),
-            span,
-        }
+            .unwrap_or(0) as f64
     } else {
-        let num = f64::from_str(&content)
+        f64::from_str(&content)
             .ok()
             .or_else(|| {
                 f64::from_str(
@@ -313,11 +307,11 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
                 )
                 .ok()
             })
-            .unwrap_or(0.0);
-        QueryToken {
-            ty: QueryTokenType::Standard(StandardTokenType::Float(num.into())),
-            span,
-        }
+            .unwrap_or(0.0)
+    };
+    QueryToken {
+        ty: QueryTokenType::Standard(StandardTokenType::Number(num.into())),
+        span,
     }
 }
 
@@ -534,7 +528,7 @@ mod tests {
             "foo 123 \"bar\"",
             vec![
                 t(StandardTokenType::Identifier("foo".to_string()), 0, 2),
-                t(StandardTokenType::Integer(123), 4, 6),
+                t(StandardTokenType::Number(Float(123.0)), 4, 6),
                 t(StandardTokenType::StringLiteral("bar".to_string()), 8, 12),
             ],
         );
@@ -557,9 +551,9 @@ mod tests {
         test(
             "123 0b101 0x123FG",
             vec![
-                t(StandardTokenType::Integer(123), 0, 2),
-                t(StandardTokenType::Integer(0b101), 6, 8),
-                t(StandardTokenType::Integer(0x123f), 12, 15),
+                t(StandardTokenType::Number(Float(123.0)), 0, 2),
+                t(StandardTokenType::Number(Float(0b101 as f64)), 6, 8),
+                t(StandardTokenType::Number(Float(0x123f as f64)), 12, 15),
                 t(StandardTokenType::Identifier("G".to_string()), 16, 16),
             ],
         );
@@ -567,8 +561,8 @@ mod tests {
         test(
             "12.23 2.3e5",
             vec![
-                t(StandardTokenType::Float(12.23.into()), 0, 4),
-                t(StandardTokenType::Float(230000.0.into()), 6, 10),
+                t(StandardTokenType::Number(Float(12.23)), 0, 4),
+                t(StandardTokenType::Number(Float(230000.0)), 6, 10),
             ],
         );
     }

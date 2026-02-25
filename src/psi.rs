@@ -1,7 +1,6 @@
 //! Peekable String Iterator, with possibility to peek multiple characters at once.
 
 use ouroboros::self_referencing;
-use std::collections::BTreeMap;
 use std::str::CharIndices;
 
 /// Enable peeking for `CharIndices`.
@@ -62,6 +61,21 @@ impl OwnedCharIndices {
     pub fn rest_str<F: FnOnce(&str) -> R, R>(&self, cb: F) -> R {
         self.with_char_iter(|iter| cb(iter.as_str()))
     }
+
+    /// Skip `n` bytes from the current position (`n` must be at a char boundary).
+    /// Returns the byte offset in the original content of the last consumed character,
+    /// or `None` if `n == 0`.
+    pub fn skip_bytes(&mut self, n: usize) -> Option<usize> {
+        self.with_char_iter_mut(|iter| {
+            let char_count = iter.as_str()[..n].chars().count();
+            if char_count > 0 {
+                iter.nth(char_count - 1)
+                    .map(|(offset, c)| offset + c.len_utf8() - 1)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 impl Clone for OwnedCharIndices {
@@ -75,20 +89,6 @@ impl Clone for OwnedCharIndices {
 }
 
 /// An iterator over strings, keeping track of origins for each substring.
-///
-/// # Examples
-///
-/// Basic usage:
-/// ```
-/// use syns::psi::PeekableStringIterator;
-///
-/// let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo BAR baz".to_string());
-/// let (identifier, _) = iter.collect_while(|x| match x {
-///     'a'..='z' => true,
-///     _ => false
-/// });
-/// assert_eq!(&identifier, "foo");
-/// ```
 #[derive(Clone, Debug)]
 pub struct PeekableStringIterator {
     /// Current Span.
@@ -97,12 +97,10 @@ pub struct PeekableStringIterator {
     /// Iterator.
     iter: OwnedCharIndices,
 
-    /// Current line starting byte.
-    current_line_starting_byte: usize,
-    /// Current line number, starting from 1.
-    current_line_number: usize,
-    /// Map from starting byte to (exclusive ending byte, line number) in the file.
-    line_numbers: BTreeMap<usize, (usize, usize)>,
+    /// Sorted table of (line_start_byte, line_end_byte_exclusive, line_number).
+    /// `line_end_byte_exclusive` points to the '\n' for lines that end with one,
+    /// or to content.len() for the last line.
+    line_numbers: Vec<(usize, usize, usize)>,
 }
 
 impl Iterator for PeekableStringIterator {
@@ -111,44 +109,39 @@ impl Iterator for PeekableStringIterator {
     /// Get next char in the current file
     fn next(&mut self) -> Option<char> {
         if let Some((s, c)) = self.iter.next() {
-            if c == '\n' {
-                self.line_numbers.insert(
-                    self.current_line_starting_byte,
-                    (self.current_span.hi + 1, self.current_line_number),
-                );
-                self.current_line_number += 1;
-                self.current_line_starting_byte = s + 1;
-            }
-            self.current_span.hi = s;
+            self.current_span.hi = s + c.len_utf8() - 1;
             Some(c)
         } else {
-            if self.current_line_starting_byte != 0 {
-                self.line_numbers.insert(
-                    self.current_line_starting_byte,
-                    (self.current_span.hi + 1, self.current_line_number),
-                );
-                self.current_line_number += 1;
-                self.current_line_starting_byte = 0
-            }
             None
         }
     }
 }
 
 impl PeekableStringIterator {
-    /// Initialize the iterator.
-    pub fn new(_filename: String, content: String) -> PeekableStringIterator {
-        let mut line_numbers = BTreeMap::new();
-
-        // If we don't do this pre-scan, we'll get an error (for files with zero end-of-lines) or
-        // an off-by-one (files not ending with eol) in get_line_information
-        if let Some(c) = content.chars().last() {
-            if c != '\n' {
-                let last_line_start = content.rfind('\n').map(|p| p + 1).unwrap_or(0);
-                let line_number = content.chars().filter(|&c| c == '\n').count() + 1;
-                line_numbers.insert(last_line_start, (content.len(), line_number));
+    /// Build the complete line table from `content` in a single pass.
+    /// Returns a Vec of `(line_start_byte, line_end_byte_exclusive, line_number)`,
+    /// sorted by `line_start_byte`. `line_end_byte_exclusive` points to the '\n'
+    /// for newline-terminated lines, and to `content.len()` for the last line.
+    fn build_line_numbers(content: &str) -> Vec<(usize, usize, usize)> {
+        let mut lines = Vec::new();
+        let mut line_start = 0usize;
+        let mut line_num = 1usize;
+        for (i, b) in content.bytes().enumerate() {
+            if b == b'\n' {
+                lines.push((line_start, i, line_num));
+                line_num += 1;
+                line_start = i + 1;
             }
         }
+        if !content.is_empty() {
+            lines.push((line_start, content.len(), line_num));
+        }
+        lines
+    }
+
+    /// Initialize the iterator.
+    pub fn new(_filename: String, content: String) -> PeekableStringIterator {
+        let line_numbers = Self::build_line_numbers(&content);
 
         let iter = OwnedCharIndicesBuilder {
             content,
@@ -160,77 +153,19 @@ impl PeekableStringIterator {
         PeekableStringIterator {
             iter,
             current_span,
-
-            current_line_starting_byte: 0,
-            current_line_number: 1,
             line_numbers,
         }
     }
 
     /// Get next char, resetting the current span to the char's location.
     pub fn next_new_span(&mut self) -> Option<char> {
-        if let Some(c) = self.next() {
-            self.current_span.lo = self.current_span.hi;
+        if let Some((s, c)) = self.iter.next() {
+            self.current_span.lo = s;
+            self.current_span.hi = s + c.len_utf8() - 1;
             Some(c)
         } else {
             None
         }
-    }
-
-    /// Collect a string until `f` return false. Returns the string and its span.
-    /// See [`collect_while_map`] for semantic details.
-    ///
-    /// [`collect_while_map`]: #method.collect_while_map
-    ///
-    /// # Example
-    /// ```
-    /// # use syns::psi::PeekableStringIterator;
-    /// let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
-    /// let (s1, _) = iter.collect_while(|x| match x {
-    ///     'a'..='z' => true,
-    ///     _ => false
-    /// });
-    /// assert_eq!(s1, "foo");
-    /// ```
-    pub fn collect_while(&mut self, mut f: impl FnMut(char) -> bool) -> (String, Span) {
-        self.collect_while_map(|c, _| if f(c) { Some(c) } else { None })
-    }
-
-    /// Iterate over self, map the results with f and collect to a string from the iterator. Stops
-    /// when `f` returns None or the end-of-file is reached. This will always consume at least one
-    /// character from the iterator, which is stored in the string if `f` returns Some. Returns the
-    /// resulting string and its span.
-    ///
-    /// # Example
-    /// ```
-    /// # use syns::psi::PeekableStringIterator;
-    /// let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
-    /// let (s1, _) = iter.collect_while_map(|x, _| match x {
-    ///     'a'..='z' => Some(x.to_ascii_uppercase()),
-    ///     _ => None
-    /// });
-    /// assert_eq!(s1, "FOO");
-    /// ```
-    pub fn collect_while_map(
-        &mut self,
-        mut f: impl FnMut(char, &mut Self) -> Option<char>,
-    ) -> (String, Span) {
-        let mut content = String::new();
-        if let Some(c) = self.next_new_span() {
-            if let Some(c) = f(c, self) {
-                content.push(c);
-            }
-        }
-        while let Some(c) = self.peek() {
-            if let Some(c) = f(c, self) {
-                content.push(c);
-                self.next();
-            } else {
-                break;
-            }
-        }
-
-        (content, self.current_span())
     }
 
     /// Peek the next character in the current file.
@@ -238,9 +173,9 @@ impl PeekableStringIterator {
         self.iter.peek()
     }
 
-    /// Peek the next `n` characters in the current file.
-    pub fn peek_n(&self, n: usize) -> String {
-        self.iter.rest_str(|s| s.chars().take(n).collect())
+    /// Call `cb` with the remaining (not-yet-consumed) content as a `&str`.
+    pub fn rest_str<F: FnOnce(&str) -> R, R>(&self, cb: F) -> R {
+        self.iter.rest_str(cb)
     }
 
     /// Returns whether the current iterator position starts with `s`.
@@ -253,89 +188,63 @@ impl PeekableStringIterator {
         self.current_span
     }
 
+    /// Skip `n` bytes from the current position (`n` must be at a char boundary).
+    pub fn skip_bytes(&mut self, n: usize) {
+        if let Some(hi) = self.iter.skip_bytes(n) {
+            self.current_span.hi = hi;
+        }
+    }
+
+    /// Skip all content up to (but not including) the next newline character.
+    pub fn skip_to_newline(&mut self) {
+        let n = self.iter.rest_str(|s| s.find('\n').unwrap_or(s.len()));
+        self.skip_bytes(n);
+    }
+
+    /// Skip past the first occurrence of `target`. If not found, skip to end of content.
+    pub fn skip_past_str(&mut self, target: &str) {
+        let n = self
+            .iter
+            .rest_str(|s| s.find(target).map(|p| p + target.len()).unwrap_or(s.len()));
+        self.skip_bytes(n);
+    }
+
     /// Get characters contained in the span.
     pub fn get_content_between(&self, span: Span) -> String {
-        String::from_utf8_lossy(
-            &self
-                .iter
-                .content()
-                .bytes()
-                .skip(span.lo)
-                .take(span.hi - span.lo + 1)
-                .collect::<Vec<_>>(),
-        )
-        .to_string()
+        self.iter.content()[span.lo..=span.hi].to_string()
     }
 
-    fn get_start_index(&self, offset: usize) -> usize {
-        self.line_numbers
-            .range(0..=offset)
-            .map(|(start, _)| *start)
-            .next_back()
-            .unwrap_or(0)
-    }
-
-    fn get_end_index(&self, offset: usize) -> usize {
-        self.line_numbers
-            .range(0..=offset)
-            .map(|(_, (end, _))| *end)
-            .next_back()
-            .unwrap_or(usize::MAX)
+    /// Find the line containing `offset`, returning `(line_start, line_end_exclusive, line_number)`.
+    fn find_line(&self, offset: usize) -> (usize, usize, usize) {
+        let idx = self
+            .line_numbers
+            .partition_point(|&(start, _, _)| start <= offset);
+        self.line_numbers[idx - 1]
     }
 
     fn get_span_indices(&self, span: Span) -> (usize, usize) {
-        let start = self.get_start_index(span.lo);
-        let end = self.get_end_index(span.hi);
-        (start, end)
-    }
-
-    fn get_line_starts(&self, span: Span) -> (usize, usize) {
-        let start = self.get_start_index(span.lo);
-        let end = self.get_start_index(span.hi);
-        (start, end)
+        (self.find_line(span.lo).0, self.find_line(span.hi).1)
     }
 
     /// Get the line numbers for the match. Returns (first_line, last_line).
     pub fn get_line_information(&self, span: Span) -> (usize, usize) {
-        let (start_index, end_index) = self.get_line_starts(span);
-
-        (
-            self.line_numbers[&start_index].1,
-            self.line_numbers[&end_index].1,
-        )
+        (self.find_line(span.lo).2, self.find_line(span.hi).2)
     }
 
     /// Get line contents for the two matches.
     pub fn get_lines_including(&self, span: Span) -> (String, Vec<String>, String) {
         let (start_index, end_index) = self.get_span_indices(span);
+        let content_str = self.iter.content();
 
-        let head = self
-            .iter
-            .content()
-            .bytes()
-            .skip(start_index)
-            .take(span.lo - start_index)
-            .collect::<Vec<_>>();
-
-        let tail = self
-            .iter
-            .content()
-            .bytes()
-            .skip(span.hi + 1)
-            .take(end_index - (span.hi + 1))
-            .collect::<Vec<_>>();
-
+        let head = content_str[start_index..span.lo].to_string();
+        let tail = content_str[span.hi + 1..end_index].to_string();
         let content = self
             .get_content_between(span)
             .lines()
             .map(|s| s.to_string())
             .collect();
 
-        (
-            String::from_utf8_lossy(&head).to_string(),
-            content,
-            String::from_utf8_lossy(&tail).to_string(),
-        )
+        (head, content, tail)
     }
 }
 
@@ -361,58 +270,12 @@ mod tests {
     }
 
     #[test]
-    fn collect_while() {
-        let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
-        let (s1, _) = iter.collect_while(|x| x.is_ascii_lowercase());
-        assert_eq!(s1, "foo");
-        assert_eq!(iter.next(), Some(' '));
-
-        let (s2, _) = iter.collect_while(|x| x.is_ascii_lowercase());
-        assert_eq!(s2, "bar");
-        assert_eq!(iter.next(), Some(' '));
-
-        let (s3, _) = iter.collect_while(|x| x.is_ascii_lowercase());
-        assert_eq!(s3, "baz");
-        assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn collect_while_map() {
-        let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
-        let (s1, span) = iter.collect_while_map(|x, _| match x {
-            'a'..='z' => Some(x.to_ascii_uppercase()),
-            _ => None,
-        });
-        assert_eq!(s1, "FOO");
-        assert_eq!(span, Span { lo: 0, hi: 2 });
-
-        assert_eq!(iter.next(), Some(' '));
-    }
-
-    #[test]
-    fn empty_iter() {
-        let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo".to_string());
-        assert_eq!(iter.next(), Some('f'));
-        assert_eq!(iter.next(), Some('o'));
-        assert_eq!(iter.next(), Some('o'));
-        assert_eq!(iter.peek(), None);
-        assert_eq!(iter.next(), None);
-        assert_eq!(iter.next_new_span(), None);
-    }
-
-    #[test]
     fn peek_ahead() {
         let mut iter = PeekableStringIterator::new("foo.h".to_string(), "foo bar baz".to_string());
         assert!(iter.starts_with("foo "));
         assert!(iter.starts_with("foo "));
         assert!(!iter.starts_with("bar"));
         assert_eq!(iter.next(), Some('f'));
-        assert_eq!(iter.next(), Some('o'));
-        assert_eq!(iter.next(), Some('o'));
-        assert_eq!(iter.next(), Some(' '));
-        assert_eq!(iter.next(), Some('b'));
-        assert_eq!(iter.next(), Some('a'));
-        assert_eq!(iter.next(), Some('r'));
     }
 
     #[test]
@@ -423,40 +286,139 @@ mod tests {
     }
 
     #[test]
-    fn get_lines() {
+    fn current_span_tracks_next() {
+        let mut iter = PeekableStringIterator::new("f".to_string(), "foo".to_string());
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 0 });
+        iter.next();
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 0 });
+        iter.next();
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 1 });
+        iter.next();
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 2 });
+    }
+
+    #[test]
+    fn next_new_span_resets_lo() {
+        let mut iter = PeekableStringIterator::new("f".to_string(), "foo bar".to_string());
+        iter.next();
+        iter.next();
+        iter.next();
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 2 });
+        iter.next_new_span();
+        assert_eq!(iter.current_span(), Span { lo: 3, hi: 3 });
+        iter.next();
+        iter.next();
+        iter.next();
+        assert_eq!(iter.current_span(), Span { lo: 3, hi: 6 });
+    }
+
+    #[test]
+    fn rest_str_returns_remaining() {
+        let mut iter = PeekableStringIterator::new("f".to_string(), "foo bar".to_string());
+        iter.rest_str(|s| assert_eq!(s, "foo bar"));
+        iter.next();
+        iter.rest_str(|s| assert_eq!(s, "oo bar"));
+        iter.next();
+        iter.next();
+        iter.rest_str(|s| assert_eq!(s, " bar"));
+    }
+
+    #[test]
+    fn skip_bytes() {
+        let mut iter = PeekableStringIterator::new("f".to_string(), "foo bar".to_string());
+        iter.skip_bytes(0);
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 0 });
+        assert_eq!(iter.peek(), Some('f'));
+        iter.skip_bytes(3);
+        assert_eq!(iter.current_span(), Span { lo: 0, hi: 2 });
+        assert_eq!(iter.peek(), Some(' '));
+    }
+
+    #[test]
+    fn skip_to_newline() {
+        let mut iter = PeekableStringIterator::new("f".to_string(), "// comment\ncode".to_string());
+        iter.skip_to_newline();
+        assert_eq!(iter.peek(), Some('\n'));
+
+        // no newline: skip to end
+        let mut iter = PeekableStringIterator::new("f".to_string(), "no newline".to_string());
+        iter.skip_to_newline();
+        assert_eq!(iter.peek(), None);
+    }
+
+    #[test]
+    fn skip_past_str() {
         let mut iter =
-            PeekableStringIterator::new("foo.h".to_string(), "foo\nbar\nbaz".to_string());
-        let (s1, sp1) = iter.collect_while(|x| x.is_ascii_lowercase());
-        assert_eq!(s1, "foo");
-        assert_eq!(iter.next(), Some('\n'));
-        let (s2, sp2) = iter.collect_while(|x| x.is_ascii_lowercase());
-        assert_eq!(s2, "bar");
-        assert_eq!(iter.next(), Some('\n'));
-        let (s3, sp3) = iter.collect_while(|x| x.is_ascii_lowercase());
-        assert_eq!(s3, "baz");
-        assert_eq!(iter.next(), None);
+            PeekableStringIterator::new("f".to_string(), "/* comment */ code".to_string());
+        iter.skip_past_str("*/");
+        assert_eq!(iter.peek(), Some(' '));
 
-        assert_eq!(iter.get_line_information(sp1), (1, 1));
-        assert_eq!(iter.get_line_information(sp2), (2, 2));
-        assert_eq!(iter.get_line_information(sp3), (3, 3));
-        assert_eq!(iter.get_line_information(sp1.merge(&sp2)), (1, 2));
-        assert_eq!(iter.get_line_information(sp1.merge(&sp3)), (1, 3));
-        assert_eq!(iter.get_line_information(sp2.merge(&sp3)), (2, 3));
+        // not found: skip to end
+        let mut iter = PeekableStringIterator::new("f".to_string(), "no match here".to_string());
+        iter.skip_past_str("*/");
+        assert_eq!(iter.peek(), None);
+    }
 
-        assert_eq!(iter.get_lines_including(sp1).1, vec!["foo"]);
-        assert_eq!(iter.get_lines_including(sp2).1, vec!["bar"]);
-        assert_eq!(iter.get_lines_including(sp3).1, vec!["baz"]);
+    #[test]
+    fn get_line_information() {
+        let iter = PeekableStringIterator::new("f".to_string(), "foo\nbar\nbaz".to_string());
+        // single-line spans
+        assert_eq!(iter.get_line_information(Span { lo: 0, hi: 2 }), (1, 1));
+        assert_eq!(iter.get_line_information(Span { lo: 4, hi: 6 }), (2, 2));
+        assert_eq!(iter.get_line_information(Span { lo: 8, hi: 10 }), (3, 3));
+        // multi-line spans
+        assert_eq!(iter.get_line_information(Span { lo: 0, hi: 6 }), (1, 2));
+        assert_eq!(iter.get_line_information(Span { lo: 0, hi: 10 }), (1, 3));
+    }
+
+    #[test]
+    fn get_lines_including() {
+        // middle of line
+        let iter = PeekableStringIterator::new("f".to_string(), "foo bar baz".to_string());
         assert_eq!(
-            iter.get_lines_including(sp1.merge(&sp2)).1,
-            vec!["foo", "bar"]
+            iter.get_lines_including(Span { lo: 4, hi: 6 }),
+            (
+                "foo ".to_string(),
+                vec!["bar".to_string()],
+                " baz".to_string()
+            )
         );
+
+        // start of line: "foo\nbar baz", "bar" starts at byte 4
+        let iter = PeekableStringIterator::new("f".to_string(), "foo\nbar baz".to_string());
         assert_eq!(
-            iter.get_lines_including(sp1.merge(&sp3)).1,
-            vec!["foo", "bar", "baz"]
+            iter.get_lines_including(Span { lo: 4, hi: 6 }),
+            ("".to_string(), vec!["bar".to_string()], " baz".to_string())
         );
+
+        // multi-line span covering entire "foo\nbar"
+        let iter = PeekableStringIterator::new("f".to_string(), "foo\nbar".to_string());
         assert_eq!(
-            iter.get_lines_including(sp2.merge(&sp3)).1,
-            vec!["bar", "baz"]
+            iter.get_lines_including(Span { lo: 0, hi: 6 }),
+            (
+                "".to_string(),
+                vec!["foo".to_string(), "bar".to_string()],
+                "".to_string()
+            )
         );
+    }
+
+    #[test]
+    fn unicode() {
+        let mut iter = PeekableStringIterator::new("f".to_string(), "héllo".to_string());
+        assert_eq!(iter.next(), Some('h'));
+        assert_eq!(iter.next(), Some('é'));
+        assert_eq!(iter.next(), Some('l'));
+        assert_eq!(iter.peek(), Some('l'));
+
+        let mut iter = PeekableStringIterator::new("f".to_string(), "héllo".to_string());
+        iter.skip_bytes(3);
+        assert_eq!(iter.peek(), Some('l'));
+
+        let mut iter = PeekableStringIterator::new("f".to_string(), "héllo".to_string());
+        iter.next_new_span(); // 'h'
+        iter.next_new_span(); // 'é'
+        let span = iter.current_span();
+        assert_eq!(iter.get_content_between(span), "é");
     }
 }

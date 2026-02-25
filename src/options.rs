@@ -36,7 +36,7 @@ pub struct Options {
     pub block_closers: HashSet<String>,
     /// Regex to match first letter of an identifier
     pub identifier_regex_start: Regex,
-    /// Regex to match non-first letters of an identifier
+    /// Regex matching one or more non-first letters of an identifier
     pub identifier_regex_continue: Regex,
     /// Parse '..' as a range.
     pub ranges: bool,
@@ -173,7 +173,7 @@ impl Default for Options {
                 .into_iter()
                 .collect(),
             identifier_regex_start: Regex::new("[\\p{ID_Start}_]").expect("internal error"),
-            identifier_regex_continue: Regex::new("\\p{ID_Continue}").expect("internal error"),
+            identifier_regex_continue: Regex::new("\\p{ID_Continue}+").expect("internal error"),
             regex_delimiters: HashSet::new(),
             type_parameter_parsing: false,
             ranges: true,
@@ -567,7 +567,7 @@ impl Options {
     /// assert!(!options.is_open_paren("}"));
     /// ```
     pub fn is_open_paren(&self, c: &str) -> bool {
-        self.block_openers.iter().any(|s| c == s)
+        self.block_openers.contains(c)
     }
 
     /// Is `c` a close paren for the current file type?
@@ -578,7 +578,7 @@ impl Options {
     /// assert!(options.is_close_paren("}"));
     /// ```
     pub fn is_close_paren(&self, c: &str) -> bool {
-        self.block_closers.iter().any(|e| c == e)
+        self.block_closers.contains(c)
     }
 }
 

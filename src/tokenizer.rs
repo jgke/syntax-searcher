@@ -3,6 +3,7 @@
 use crate::options::Options;
 use crate::psi::{PeekableStringIterator, Span};
 use crate::wrappers::Float;
+use regex::Regex;
 use std::convert::{TryFrom, TryInto};
 use std::io::Read;
 use std::str::FromStr;
@@ -182,6 +183,7 @@ pub fn tokenize_recur(
             had_whitespace = true;
             continue;
         }
+        let char_str = c.to_string();
         let token = match c {
             _ if options
                 .string_characters
@@ -207,13 +209,11 @@ pub fn tokenize_recur(
                 had_whitespace = true;
                 continue;
             }
-            c if options.identifier_regex_start.is_match(&c.to_string()) => {
+            _ if options.identifier_regex_start.is_match(&c.to_string()) => {
                 read_identifier(iter, options)
             }
             '0'..='9' => read_number(iter, options),
-            c if options.is_open_paren(&c.to_string())
-                || options.is_close_paren(&c.to_string()) =>
-            {
+            _ if options.is_open_paren(&char_str) || options.is_close_paren(&char_str) => {
                 res.push(read_paren(iter));
                 had_whitespace = true;
                 continue;
@@ -227,47 +227,64 @@ pub fn tokenize_recur(
 }
 
 fn flush_single_line(iter: &mut PeekableStringIterator) {
-    iter.collect_while(|x| x != '\n');
+    iter.skip_to_newline();
 }
 
 fn flush_multi_line_comment(iter: &mut PeekableStringIterator, start: &str, end: &str) {
-    for c in start.chars() {
-        assert_eq!(Some(c), iter.next());
-    }
-    while !iter.starts_with(end) {
-        if iter.next().is_none() {
-            break;
-        }
-    }
-    for c in end.chars() {
-        if let Some(other_c) = iter.next() {
-            assert_eq!(c, other_c);
-        }
-    }
+    iter.skip_past_str(start);
+    iter.skip_past_str(end);
 }
 
-fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
-    let radix_str = iter.peek_n(2);
-    let radix = match radix_str.as_ref() {
-        "0b" => {
-            iter.next();
-            iter.next();
-            2
-        }
-        "0x" => {
-            iter.next();
-            iter.next();
-            16
-        }
-        _ => 10,
-    };
-    let (content_str, span) = iter.collect_while_map(|c, iter| match c {
+fn map_number_char(
+    c: char,
+    iter: &PeekableStringIterator,
+    radix: u32,
+    allow_ranges: bool,
+) -> Option<char> {
+    match c {
         '0'..='9' | '_' => Some(c),
-        '.' if options.ranges && !iter.starts_with("..") => Some(c),
+        '.' if allow_ranges && !iter.starts_with("..") => Some(c),
         'a'..='f' | 'A'..='F' if radix == 16 => Some(c),
         'e' => Some(c),
         _ => None,
-    });
+    }
+}
+
+fn collect_number_chars(
+    iter: &mut PeekableStringIterator,
+    radix: u32,
+    allow_ranges: bool,
+) -> (String, Span) {
+    let mut content = String::with_capacity(16);
+    if let Some(c) = iter.next_new_span() {
+        if let Some(c) = map_number_char(c, iter, radix, allow_ranges) {
+            content.push(c);
+        }
+    }
+    while let Some(c) = iter.peek() {
+        if let Some(c) = map_number_char(c, iter, radix, allow_ranges) {
+            content.push(c);
+            iter.next();
+        } else {
+            break;
+        }
+    }
+    (content, iter.current_span())
+}
+
+fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
+    let radix = if iter.starts_with("0b") {
+        iter.next();
+        iter.next();
+        2
+    } else if iter.starts_with("0x") {
+        iter.next();
+        iter.next();
+        16
+    } else {
+        10
+    };
+    let (content_str, span) = collect_number_chars(iter, radix, options.ranges);
     let content = content_str
         .chars()
         .filter(|c| *c != '_')
@@ -354,16 +371,32 @@ fn read_regex(iter: &mut PeekableStringIterator) -> QueryToken {
     }
 }
 
-fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
-    let mut first = true;
-    let (content, span) = iter.collect_while(|c| {
-        if first {
-            first = false;
-            options.identifier_regex_start.is_match(&c.to_string())
-        } else {
-            options.identifier_regex_continue.is_match(&c.to_string())
-        }
+fn collect_identifier_chars(
+    iter: &mut PeekableStringIterator,
+    start: &Regex,
+    cont: &Regex,
+) -> (String, Span) {
+    let first = match iter.next_new_span() {
+        Some(c) if start.is_match(&c.to_string()) => c,
+        _ => return (String::new(), iter.current_span()),
+    };
+    let (suffix, n) = iter.rest_str(|s| match cont.find(s) {
+        Some(m) if m.start() == 0 => (s[..m.end()].to_string(), m.end()),
+        _ => (String::new(), 0),
     });
+    iter.skip_bytes(n);
+    let mut content = String::with_capacity(1 + suffix.len());
+    content.push(first);
+    content.push_str(&suffix);
+    (content, iter.current_span())
+}
+
+fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
+    let (content, span) = collect_identifier_chars(
+        iter,
+        &options.identifier_regex_start,
+        &options.identifier_regex_continue,
+    );
 
     if options.is_open_paren(&content) || options.is_close_paren(&content) {
         /* handle eg. do / end -style "parens" */

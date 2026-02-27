@@ -23,7 +23,7 @@ macro_rules! writeln_colored {
 }
 
 /// Parse `file` with `options` and print all matches.
-pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, file: R) -> bool {
+pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, mut file: R) -> bool {
     /* Colors from ripgrep's printer crate */
     #[cfg(unix)]
     let path_style: Color = Color::Magenta;
@@ -41,8 +41,16 @@ pub fn run_cached<R: Read>(query: &Query, options: &Options, filename: &Path, fi
     match_spec.set_fg(Some(match_fg_color)).set_bold(true);
 
     let mut stdout = StandardStream::stdout(options.color);
+    debug!("Reading file");
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf).expect("Failed to read file");
+    if !options.search_binary && buf.contains(&0) {
+        return false;
+    }
+    let content = String::from_utf8_lossy(&buf).into_owned();
     debug!("Parsing file");
-    let (file, iter) = parse_file(file, options);
+    let (file_ast, iter) = parse_file(&content, options);
+    let file = file_ast;
     debug!("Enumerating matches");
     let mut found_match = false;
     for m in query.matches(&file) {
@@ -117,19 +125,18 @@ mod tests {
     use crate::psi::Span;
     use crate::tokenizer::*;
 
-    fn run_all<R: Read>(options: Options, file: R) -> Vec<Match> {
+    fn run_all(options: Options, content: &str) -> Vec<Match> {
         let query = Query::new(&options);
-        let (file, _iter) = parse_file(file, &options);
+        let (file, _iter) = parse_file(content, &options);
         query.matches(&file).collect()
     }
 
     fn run_strs(query: &str, file: &str) -> Vec<String> {
         let options = Options::new("js".as_ref(), &["syns", query, "-"]);
-        let file = file.as_bytes();
         let query = Query::new(&options);
-        let (file, iter) = parse_file(file, &options);
+        let (file_ast, iter) = parse_file(file, &options);
         query
-            .matches(&file)
+            .matches(&file_ast)
             .map(|m| {
                 let span = m.t[0].span().merge(&m.t.last().unwrap_or(&m.t[0]).span());
                 iter.get_content_between(span)
@@ -139,19 +146,13 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let res = run_all(
-            Options::new("js".as_ref(), &["syns", "bar", "-"]),
-            "foo".as_bytes(),
-        );
+        let res = run_all(Options::new("js".as_ref(), &["syns", "bar", "-"]), "foo");
         assert_eq!(res.len(), 0);
     }
 
     #[test]
     fn test_one_match() {
-        let res = run_all(
-            Options::new("js".as_ref(), &["syns", "foo", "-"]),
-            "foo".as_bytes(),
-        );
+        let res = run_all(Options::new("js".as_ref(), &["syns", "foo", "-"]), "foo");
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].t.len(), 1);
         assert!(matches!(
@@ -165,10 +166,7 @@ mod tests {
 
     #[test]
     fn test_longest_match() {
-        let res = run_all(
-            Options::new("js".as_ref(), &["syns", "\\.\\*", "-"]),
-            "a a".as_bytes(),
-        );
+        let res = run_all(Options::new("js".as_ref(), &["syns", "\\.\\*", "-"]), "a a");
         assert_eq!(res.len(), 2);
         assert_eq!(res[0].t.len(), 2);
         assert_eq!(res[1].t.len(), 1);
@@ -240,7 +238,7 @@ mod tests {
                 "js".as_ref(),
                 &["syns", "do foo end", "-b", "do", "end", "-"],
             ),
-            "do foo end".as_bytes(),
+            "do foo end",
         );
         assert_eq!(res.len(), 1);
         assert_eq!(res[0].t.len(), 1);

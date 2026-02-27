@@ -3,7 +3,6 @@
 use log::debug;
 use regex::Regex;
 use std::convert::TryInto;
-use std::io::Read;
 
 use crate::multipeek_putbackn::{multipeek_put_back_n, MultiPeekPutBackN};
 use crate::options::Options;
@@ -289,8 +288,11 @@ fn parse(
 }
 
 /// Parse a source file into a list of ASTs.
-pub fn parse_file<R: Read>(file: R, options: &Options) -> (Vec<Ast>, PeekableStringIterator) {
-    let (tokens, iter) = tokenize("filename", file, options);
+pub fn parse_file<'a>(
+    content: &'a str,
+    options: &Options,
+) -> (Vec<Ast>, PeekableStringIterator<'a>) {
+    let (tokens, iter) = tokenize(content, options);
     (
         parse(options, &mut multipeek_put_back_n(tokens), false, false),
         iter,
@@ -462,12 +464,12 @@ fn parse_query_ast(
 }
 
 /// Parse a query into a list of query ASTs.
-pub fn parse_query<R: Read>(
-    file: R,
+pub fn parse_query<'a>(
+    content: &'a str,
     options: &Options,
-) -> (Vec<ParsedAstMatcher>, PeekableStringIterator) {
+) -> (Vec<ParsedAstMatcher>, PeekableStringIterator<'a>) {
     debug!("Tokenizing query");
-    let (tokens, iter) = tokenize_query(file, options);
+    let (tokens, iter) = tokenize_query(content, options);
     debug!("Tokenized query: {:#?}", tokens);
     debug!("Parsing query");
     let parsed = parse_query_ast(options, &mut multipeek_put_back_n(tokens), false, false);
@@ -709,7 +711,7 @@ mod tests_ast {
 
     fn parse_str(input: &str, ext: &str) -> Vec<Ast> {
         let options = Options::new(ext.as_ref(), &["syns", "query", "file"]);
-        let (tokens, _) = tokenize("test", input.as_bytes(), &options);
+        let (tokens, _) = tokenize(input, &options);
         parse(
             &options,
             &mut multipeek_put_back_n(tokens.into_iter()),
@@ -781,7 +783,7 @@ mod tests_query {
 
     fn parse_str(input: &str, ext: &str) -> Vec<ParsedAstMatcher> {
         let options = Options::new(ext.as_ref(), &["syns", "query", "file"]);
-        let (tokens, _) = tokenize_query(input.as_bytes(), &options);
+        let (tokens, _) = tokenize_query(input, &options);
         parse_query_ast(
             &options,
             &mut multipeek_put_back_n(tokens.into_iter()),

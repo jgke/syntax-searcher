@@ -224,7 +224,7 @@ mod tests {
 
     fn compile(query: &str) -> Machine {
         let options = Options::new("js".as_ref(), &["syns", query, "-"]);
-        let (parsed, _) = parse_query(query.as_bytes(), &options);
+        let (parsed, _) = parse_query(query, &options);
         compile_query(parsed)
     }
 

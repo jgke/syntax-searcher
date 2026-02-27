@@ -27,7 +27,7 @@ impl Query {
     /// Compile a query.
     pub fn new(options: &Options) -> Query {
         debug!("Query string: {}", options.query);
-        let (query, _) = parse_query(&mut options.query.as_bytes(), options);
+        let (query, _) = parse_query(&options.query, options);
         let machine = compile_query(query);
         debug!("Query AST: {:#?}", machine);
         Query { machine }

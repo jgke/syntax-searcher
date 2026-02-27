@@ -5,7 +5,6 @@ use crate::psi::{PeekableStringIterator, Span};
 use crate::wrappers::Float;
 use regex::Regex;
 use std::convert::{TryFrom, TryInto};
-use std::io::Read;
 use std::str::FromStr;
 
 /// Special tokens for queries.
@@ -90,21 +89,14 @@ impl TryFrom<QueryToken> for StandardToken {
 }
 
 /// Tokenize a source code file.
-pub fn tokenize<R: Read>(
-    filename: &str,
-    mut content: R,
+pub fn tokenize<'a>(
+    content: &'a str,
     options: &Options,
-) -> (Vec<StandardToken>, PeekableStringIterator) {
-    let mut file_buf = vec![];
-    content
-        .read_to_end(&mut file_buf)
-        .expect("Failed to read file to memory");
-    if !options.search_binary && file_buf.contains(&0) {
-        let iter = PeekableStringIterator::new(filename.to_string(), String::new());
-        return (vec![], iter);
+) -> (Vec<StandardToken>, PeekableStringIterator<'a>) {
+    if !options.search_binary && content.contains('\0') {
+        return (vec![], PeekableStringIterator::new(""));
     }
-    let buf = String::from_utf8_lossy(&file_buf).to_string();
-    let mut iter = PeekableStringIterator::new(filename.to_string(), buf);
+    let mut iter = PeekableStringIterator::new(content);
     let res = tokenize_recur(&mut iter, options, false, false)
         .into_iter()
         .map(|t| t.try_into().expect("Unreachable"))
@@ -113,16 +105,11 @@ pub fn tokenize<R: Read>(
 }
 
 /// Tokenize a query string.
-pub fn tokenize_query<R: Read>(
-    mut content: R,
+pub fn tokenize_query<'a>(
+    content: &'a str,
     options: &Options,
-) -> (Vec<QueryToken>, PeekableStringIterator) {
-    let mut file_buf = vec![];
-    content
-        .read_to_end(&mut file_buf)
-        .expect("Failed to read file to memory");
-    let buf = String::from_utf8_lossy(&file_buf).to_string();
-    let mut iter = PeekableStringIterator::new("<query>".to_string(), buf);
+) -> (Vec<QueryToken>, PeekableStringIterator<'a>) {
+    let mut iter = PeekableStringIterator::new(content);
     let res = tokenize_recur(&mut iter, options, false, true);
     (res, iter)
 }
@@ -157,7 +144,7 @@ fn can_parse_regex(history: &[QueryToken]) -> bool {
 
 /// Generate tokens from a PeekableStringIterator.
 pub fn tokenize_recur(
-    iter: &mut PeekableStringIterator,
+    iter: &mut PeekableStringIterator<'_>,
     options: &Options,
     recur: bool,
     is_query: bool,
@@ -226,18 +213,18 @@ pub fn tokenize_recur(
     res
 }
 
-fn flush_single_line(iter: &mut PeekableStringIterator) {
+fn flush_single_line(iter: &mut PeekableStringIterator<'_>) {
     iter.skip_to_newline();
 }
 
-fn flush_multi_line_comment(iter: &mut PeekableStringIterator, start: &str, end: &str) {
+fn flush_multi_line_comment(iter: &mut PeekableStringIterator<'_>, start: &str, end: &str) {
     iter.skip_past_str(start);
     iter.skip_past_str(end);
 }
 
 fn map_number_char(
     c: char,
-    iter: &PeekableStringIterator,
+    iter: &PeekableStringIterator<'_>,
     radix: u32,
     allow_ranges: bool,
 ) -> Option<char> {
@@ -251,7 +238,7 @@ fn map_number_char(
 }
 
 fn collect_number_chars(
-    iter: &mut PeekableStringIterator,
+    iter: &mut PeekableStringIterator<'_>,
     radix: u32,
     allow_ranges: bool,
 ) -> (String, Span) {
@@ -272,7 +259,7 @@ fn collect_number_chars(
     (content, iter.current_span())
 }
 
-fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
+fn read_number(iter: &mut PeekableStringIterator<'_>, options: &Options) -> QueryToken {
     let radix = if iter.starts_with("0b") {
         iter.next();
         iter.next();
@@ -332,7 +319,7 @@ fn read_number(iter: &mut PeekableStringIterator, options: &Options) -> QueryTok
     }
 }
 
-fn read_string_content(iter: &mut PeekableStringIterator) -> String {
+fn read_string_content(iter: &mut PeekableStringIterator<'_>) -> String {
     let str_end = iter.next_new_span().expect("unreachable");
 
     let mut content = String::new();
@@ -355,7 +342,7 @@ fn read_string_content(iter: &mut PeekableStringIterator) -> String {
     content
 }
 
-fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
+fn read_string(iter: &mut PeekableStringIterator<'_>) -> QueryToken {
     let content = read_string_content(iter);
     QueryToken {
         ty: QueryTokenType::Standard(StandardTokenType::StringLiteral(content)),
@@ -363,7 +350,7 @@ fn read_string(iter: &mut PeekableStringIterator) -> QueryToken {
     }
 }
 
-fn read_regex(iter: &mut PeekableStringIterator) -> QueryToken {
+fn read_regex(iter: &mut PeekableStringIterator<'_>) -> QueryToken {
     let content = read_string_content(iter);
     QueryToken {
         ty: QueryTokenType::Standard(StandardTokenType::Regex(content)),
@@ -372,7 +359,7 @@ fn read_regex(iter: &mut PeekableStringIterator) -> QueryToken {
 }
 
 fn collect_identifier_chars(
-    iter: &mut PeekableStringIterator,
+    iter: &mut PeekableStringIterator<'_>,
     start: &Regex,
     cont: &Regex,
 ) -> (String, Span) {
@@ -380,10 +367,11 @@ fn collect_identifier_chars(
         Some(c) if start.is_match(&c.to_string()) => c,
         _ => return (String::new(), iter.current_span()),
     };
-    let (suffix, n) = iter.rest_str(|s| match cont.find(s) {
+    let s = iter.as_str();
+    let (suffix, n) = match cont.find(s) {
         Some(m) if m.start() == 0 => (s[..m.end()].to_string(), m.end()),
         _ => (String::new(), 0),
-    });
+    };
     iter.skip_bytes(n);
     let mut content = String::with_capacity(1 + suffix.len());
     content.push(first);
@@ -391,7 +379,7 @@ fn collect_identifier_chars(
     (content, iter.current_span())
 }
 
-fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
+fn read_identifier(iter: &mut PeekableStringIterator<'_>, options: &Options) -> QueryToken {
     let (content, span) = collect_identifier_chars(
         iter,
         &options.identifier_regex_start,
@@ -412,7 +400,7 @@ fn read_identifier(iter: &mut PeekableStringIterator, options: &Options) -> Quer
     }
 }
 
-fn read_paren(iter: &mut PeekableStringIterator) -> QueryToken {
+fn read_paren(iter: &mut PeekableStringIterator<'_>) -> QueryToken {
     match iter.next_new_span() {
         Some(c) => QueryToken {
             ty: QueryTokenType::Standard(StandardTokenType::Symbol(c.to_string())),
@@ -425,7 +413,7 @@ fn read_paren(iter: &mut PeekableStringIterator) -> QueryToken {
 fn read_other(
     res: &mut Vec<QueryToken>,
     had_whitespace: bool,
-    iter: &mut PeekableStringIterator,
+    iter: &mut PeekableStringIterator<'_>,
 ) -> QueryToken {
     match iter.next_new_span() {
         Some(c) => {
@@ -469,7 +457,7 @@ fn read_other(
     }
 }
 
-fn read_query_command(iter: &mut PeekableStringIterator, options: &Options) -> QueryToken {
+fn read_query_command(iter: &mut PeekableStringIterator<'_>, options: &Options) -> QueryToken {
     let t = match iter.peek().expect("Unexpected end of query string") {
         '.' => QueryTokenType::Special(SpecialTokenType::Any),
         '*' => QueryTokenType::Special(SpecialTokenType::Star),
@@ -524,7 +512,7 @@ mod tests {
     }
 
     fn test_file(input: &str, expected: Vec<StandardToken>, options: Options) {
-        let (tokens, _) = tokenize("foo", input.as_bytes(), &options);
+        let (tokens, _) = tokenize(input, &options);
         assert_eq!(
             tokens.iter().map(|t| &t.ty).collect::<Vec<_>>(),
             expected.iter().map(|t| &t.ty).collect::<Vec<_>>()
@@ -536,7 +524,7 @@ mod tests {
     }
 
     fn test_query(input: &str, expected: Vec<QueryToken>, options: Options) {
-        let (tokens, _) = tokenize_query(input.as_bytes(), &options);
+        let (tokens, _) = tokenize_query(input, &options);
         assert_eq!(
             tokens.iter().map(|t| &t.ty).collect::<Vec<_>>(),
             expected.iter().map(|t| &t.ty).collect::<Vec<_>>()
@@ -820,8 +808,7 @@ mod tests {
     #[test]
     fn binary_file_skipped_by_default() {
         let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
-        let input: &[u8] = b"foo \x00 bar";
-        let (tokens, _) = tokenize("bin", input, &opts);
+        let (tokens, _) = tokenize("foo \x00 bar", &opts);
         assert!(tokens.is_empty());
     }
 
@@ -829,8 +816,7 @@ mod tests {
     fn binary_file_searched_with_flag() {
         let mut opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
         opts.search_binary = true;
-        let input: &[u8] = b"foo \x00 bar";
-        let (tokens, _) = tokenize("bin", input, &opts);
+        let (tokens, _) = tokenize("foo \x00 bar", &opts);
         assert_eq!(
             tokens,
             vec![

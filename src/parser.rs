@@ -315,6 +315,8 @@ pub enum ParsedAstMatcher {
     },
     /// Match a single any token
     Any,
+    /// Match any single non-block token (Ast::Token but not Ast::Delimited).
+    AnyToken,
     /// Match end of group
     End,
     /// Match `ParsedAstMatcher` one or more times
@@ -404,6 +406,9 @@ fn parse_query_ast(
                 })),
                 QueryTokenType::Special(SpecialTokenType::Any) => {
                     res.push(ParsedAstMatcher::Any);
+                }
+                QueryTokenType::Special(SpecialTokenType::AnyToken) => {
+                    res.push(ParsedAstMatcher::AnyToken);
                 }
                 QueryTokenType::Special(SpecialTokenType::End) => {
                     res.push(ParsedAstMatcher::End);
@@ -813,6 +818,7 @@ mod tests_query {
             },
 
             ParsedAstMatcher::Any => ParsedAstMatcher::Any,
+            ParsedAstMatcher::AnyToken => ParsedAstMatcher::AnyToken,
             ParsedAstMatcher::End => ParsedAstMatcher::End,
             ParsedAstMatcher::Plus(content) => {
                 ParsedAstMatcher::Plus(Box::new(strip_span(content)))
@@ -949,6 +955,14 @@ mod tests_query {
                 ParsedAstMatcher::Regex(RegexEq(regex::Regex::new("foo.*").unwrap())),
                 ident("b"),
             ]
+        );
+    }
+
+    #[test]
+    fn test_query_any_token() {
+        assert_eq!(
+            strip_spans(&parse_str(r"enum \i", "rs")),
+            vec![ident("enum"), ParsedAstMatcher::AnyToken]
         );
     }
 

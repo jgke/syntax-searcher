@@ -56,10 +56,15 @@ impl Query {
                         }
                         (None, Matcher::Any)
                         | (None, Matcher::Token(..))
-                        | (None, Matcher::Delimited { .. }) => {}
+                        | (None, Matcher::Delimited { .. })
+                        | (None, Matcher::AnyToken) => {}
                         (Some(_), Matcher::Any) => {
                             next_states.insert((left_pos + 1, *next_state));
                         }
+                        (Some(Ast::Token(_)), Matcher::AnyToken) => {
+                            next_states.insert((left_pos + 1, *next_state));
+                        }
+                        (Some(Ast::Delimited { .. }), Matcher::AnyToken) => {}
                         (Some(_), Matcher::End) => {}
                         (None, Matcher::End) => {
                             next_states.insert((left_pos + 1, *next_state));

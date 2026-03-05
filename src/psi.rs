@@ -38,7 +38,7 @@ pub struct PeekableStringIterator<'a> {
     line_numbers: Vec<(usize, usize, usize)>,
 }
 
-impl<'a> Iterator for PeekableStringIterator<'a> {
+impl Iterator for PeekableStringIterator<'_> {
     type Item = char;
 
     /// Get next char in the current file

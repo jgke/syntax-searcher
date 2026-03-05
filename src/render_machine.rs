@@ -10,6 +10,7 @@ fn to_dot_condition(matcher: &Matcher) -> String {
         Matcher::Token(t) => format!("token {:?}", t),
         Matcher::Delimited { op, .. } => format!("delim {:?}", op),
         Matcher::Any => "*".to_string(),
+        Matcher::AnyToken => "i".to_string(),
         Matcher::End => "$".to_string(),
         Matcher::Regex(r) => format!("r\"{}\"", r.as_str()),
         Matcher::Epsilon => "e".to_string(),

@@ -57,6 +57,7 @@ More examples
 - Find all calls to `printf` with at least one argument: `syns 'printf(\.)'`
 - Find all calls to `printf` with exactly one argument: `syns 'printf(\.\$)'`
 - Find all calls to `printf` with more than one argument, where the format string starts with "Hello": `syns 'printf(\"Hello.*" \.)'`
+- Find all enum definitions (but not `enum(...)` expressions): `syns 'enum \i'`
 
 Options
 =======
@@ -111,6 +112,7 @@ can be matched using backslash. The following commands are available:
 | `foo`                         | Match an identifier `foo`                                                               |
 | `foo bar`                     | Match an identifier `foo`, followed by whitespace and/or comments, and identifier `bar` |
 | `\.`                          | Match any token or paren-delimited tree.                                                |
+| `\i`                          | Match any single flat token (not a paren-delimited block).                              |
 | `\+`                          | Match the previous pattern one or more times.                                           |
 | `\*`                          | Match the previous pattern zero or more times.                                          |
 | `\?`                          | Match the previous pattern zero or one times.                                           |

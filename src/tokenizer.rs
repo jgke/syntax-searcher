@@ -12,6 +12,8 @@ use std::str::FromStr;
 pub enum SpecialTokenType {
     /// Match any token.
     Any,
+    /// Match any single non-block token.
+    AnyToken,
     /// Match previous matcher zero or more times.
     Star,
     /// Match previous matcher one or more times.
@@ -460,6 +462,7 @@ fn read_other(
 fn read_query_command(iter: &mut PeekableStringIterator<'_>, options: &Options) -> QueryToken {
     let t = match iter.peek().expect("Unexpected end of query string") {
         '.' => QueryTokenType::Special(SpecialTokenType::Any),
+        'i' => QueryTokenType::Special(SpecialTokenType::AnyToken),
         '*' => QueryTokenType::Special(SpecialTokenType::Star),
         '+' => QueryTokenType::Special(SpecialTokenType::Plus),
         '?' => QueryTokenType::Special(SpecialTokenType::QuestionMark),
@@ -801,6 +804,16 @@ mod tests {
                     13,
                 ),
             ],
+            opts,
+        );
+    }
+
+    #[test]
+    fn query_any_token() {
+        let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
+        test_query(
+            r#"\i"#,
+            vec![q(QueryTokenType::Special(SpecialTokenType::AnyToken), 0, 1)],
             opts,
         );
     }

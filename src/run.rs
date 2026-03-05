@@ -334,4 +334,16 @@ mod tests {
     fn test_unmatched_braces() {
         assert_eq!(run_strs("()", "(()(}{{}}"), vec!["(()(}{{}}", "()", "(}"]);
     }
+
+    #[test]
+    fn test_any_token() {
+        // \i matches flat tokens
+        assert_eq!(run_strs(r"enum \i", "enum Foo"), vec!["enum Foo"]);
+        assert_eq!(run_strs(r"enum \i", "enum Bar"), vec!["enum Bar"]);
+        // \i does not match a delimited block
+        assert_eq!(run_strs(r"enum \i", "enum()"), Vec::<String>::new());
+        // \. still matches both flat tokens and delimited blocks
+        assert_eq!(run_strs(r"enum \.", "enum Foo"), vec!["enum Foo"]);
+        assert_eq!(run_strs(r"enum \.", "enum()"), vec!["enum()"]);
+    }
 }

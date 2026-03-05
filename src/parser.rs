@@ -331,6 +331,8 @@ pub enum ParsedAstMatcher {
     Nested(Vec<ParsedAstMatcher>),
     /// Match string literal by regex
     Regex(RegexEq),
+    /// Match anything except what the inner matcher would match.
+    Not(Box<ParsedAstMatcher>),
 }
 
 fn parse_query_ast(
@@ -340,6 +342,7 @@ fn parse_query_ast(
     inside_type_param: bool,
 ) -> Vec<ParsedAstMatcher> {
     let mut res = Vec::new();
+    let mut pending_not = false;
     loop {
         if let Some(QueryToken {
             ty: QueryTokenType::Standard(StandardTokenType::Symbol(s)),
@@ -361,6 +364,7 @@ fn parse_query_ast(
             }
         }
         if let Some(token) = iter.next() {
+            let pending_not_before = pending_not;
             match &token.ty {
                 QueryTokenType::Standard(StandardTokenType::Symbol(c))
                     if options.is_open_paren(c) || is_open_type_param(c, inside_type_param) =>
@@ -460,6 +464,14 @@ fn parse_query_ast(
                         }
                     }
                 }
+                QueryTokenType::Special(SpecialTokenType::Not) => {
+                    pending_not = true;
+                }
+            }
+            if pending_not_before {
+                let last = res.pop().unwrap();
+                res.push(ParsedAstMatcher::Not(Box::new(last)));
+                pending_not = false;
             }
         } else {
             break;
@@ -834,6 +846,9 @@ mod tests_query {
             }
             ParsedAstMatcher::Nested(content) => ParsedAstMatcher::Nested(strip_spans(content)),
             ParsedAstMatcher::Regex(regex) => ParsedAstMatcher::Regex(regex.clone()),
+            ParsedAstMatcher::Not(inner) => {
+                ParsedAstMatcher::Not(Box::new(strip_span(inner)))
+            }
         }
     }
 
@@ -963,6 +978,17 @@ mod tests_query {
         assert_eq!(
             strip_spans(&parse_str(r"enum \i", "rs")),
             vec![ident("enum"), ParsedAstMatcher::AnyToken]
+        );
+    }
+
+    #[test]
+    fn test_query_not() {
+        assert_eq!(
+            strip_spans(&parse_str(r"enum \^()", "js")),
+            vec![
+                ident("enum"),
+                ParsedAstMatcher::Not(Box::new(delim("(", vec![], ")"))),
+            ]
         );
     }
 

@@ -28,6 +28,8 @@ pub enum SpecialTokenType {
     Regex(String),
     /// Grouped matchers.
     Nested(Vec<QueryToken>),
+    /// Negate the following matcher.
+    Not,
 }
 
 /// Stardard token types for source files.
@@ -468,6 +470,7 @@ fn read_query_command(iter: &mut PeekableStringIterator<'_>, options: &Options) 
         '?' => QueryTokenType::Special(SpecialTokenType::QuestionMark),
         '|' => QueryTokenType::Special(SpecialTokenType::Or),
         '$' => QueryTokenType::Special(SpecialTokenType::End),
+        '^' => QueryTokenType::Special(SpecialTokenType::Not),
         '"' => {
             let ty = QueryTokenType::Special(SpecialTokenType::Regex(read_string_content(iter)));
             return QueryToken {
@@ -814,6 +817,16 @@ mod tests {
         test_query(
             r#"\i"#,
             vec![q(QueryTokenType::Special(SpecialTokenType::AnyToken), 0, 1)],
+            opts,
+        );
+    }
+
+    #[test]
+    fn query_not() {
+        let opts = Options::new("js".as_ref(), &["syns", "foo", "foo"]);
+        test_query(
+            r#"\^"#,
+            vec![q(QueryTokenType::Special(SpecialTokenType::Not), 0, 1)],
             opts,
         );
     }

@@ -57,7 +57,8 @@ More examples
 - Find all calls to `printf` with at least one argument: `syns 'printf(\.)'`
 - Find all calls to `printf` with exactly one argument: `syns 'printf(\.\$)'`
 - Find all calls to `printf` with more than one argument, where the format string starts with "Hello": `syns 'printf(\"Hello.*" \.)'`
-- Find all enum definitions (but not `enum(...)` expressions): `syns 'enum \i'`
+- Find all references to foo where it is not immediately called: `syns 'foo\^()'`
+- Find all enum definitions, but not `enum(...)` expressions: `syns 'enum \i'`
 
 Options
 =======
@@ -119,6 +120,7 @@ can be matched using backslash. The following commands are available:
 | `\"regex"`                    | Match any string literal with the regex pattern `regex`.                                |
 | `\(pattern\)`                 | Group several patterns. Useful for eg. `\(a a\)\+`.                                     |
 | `\$`                          | Match the end of a block.                                                               |
+| `\^M`                         | Match any single token or block that `M` would NOT match.                               |
 | `p1 p2 \\\| p3 p4 \\\| p5 p6` | Match p1 and p2, p3 and p4 OR p5 and p6.                                                |
 
 Testing

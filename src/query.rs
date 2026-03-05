@@ -33,6 +33,28 @@ impl Query {
         Query { machine }
     }
 
+    fn single_node_matches(&self, node: &Ast, matcher: &Matcher) -> bool {
+        match (node, matcher) {
+            (_, Matcher::Any) => true,
+            (Ast::Token(_), Matcher::AnyToken) => true,
+            (Ast::Delimited { .. }, Matcher::AnyToken) => false,
+            (Ast::Token(t), Matcher::Token(t2)) => &t.ty == t2,
+            (Ast::Token(_), Matcher::Delimited { .. }) => false,
+            (Ast::Delimited { content, op, .. }, Matcher::Delimited { start, op: op1, .. }) => {
+                &op.ty == op1 && self.ast_match(content, &[*start]).is_some()
+            }
+            (Ast::Delimited { .. }, Matcher::Token(_)) => false,
+            (Ast::Token(t), Matcher::Regex(re)) => {
+                if let StandardTokenType::StringLiteral(c) = &t.ty {
+                    re.is_match(c)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
     fn ast_match<'a>(&self, left: &'a [Ast], initials: &[usize]) -> Option<&'a [Ast]> {
         let mut current_states = initials
             .iter()
@@ -57,7 +79,8 @@ impl Query {
                         (None, Matcher::Any)
                         | (None, Matcher::Token(..))
                         | (None, Matcher::Delimited { .. })
-                        | (None, Matcher::AnyToken) => {}
+                        | (None, Matcher::AnyToken)
+                        | (None, Matcher::Not(_)) => {}
                         (Some(_), Matcher::Any) => {
                             next_states.insert((left_pos + 1, *next_state));
                         }
@@ -65,6 +88,11 @@ impl Query {
                             next_states.insert((left_pos + 1, *next_state));
                         }
                         (Some(Ast::Delimited { .. }), Matcher::AnyToken) => {}
+                        (Some(node), Matcher::Not(inner)) => {
+                            if !self.single_node_matches(node, inner) {
+                                next_states.insert((left_pos + 1, *next_state));
+                            }
+                        }
                         (Some(_), Matcher::End) => {}
                         (None, Matcher::End) => {
                             next_states.insert((left_pos + 1, *next_state));

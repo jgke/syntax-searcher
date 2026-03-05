@@ -36,6 +36,8 @@ pub enum Matcher {
     Epsilon,
     /// Accept the input.
     Accept,
+    /// Match any node that the inner matcher does NOT match.
+    Not(Box<Matcher>),
 }
 
 /// A single state in the state machine.
@@ -210,6 +212,37 @@ impl Machine {
                     (state, state)
                 }
             }
+            ParsedAstMatcher::Not(inner) => {
+                let inner_matcher = self.compile_to_matcher(inner);
+                let end = self.state().id;
+                let start = self.state();
+                start.add_transition(end, Matcher::Not(Box::new(inner_matcher)));
+                (start.id, end)
+            }
+        }
+    }
+
+    fn compile_to_matcher(&mut self, matcher: &ParsedAstMatcher) -> Matcher {
+        match matcher {
+            ParsedAstMatcher::Token(t) => Matcher::Token(t.ty.clone()),
+            ParsedAstMatcher::Any => Matcher::Any,
+            ParsedAstMatcher::AnyToken => Matcher::AnyToken,
+            ParsedAstMatcher::Regex(r) => Matcher::Regex(r.clone()),
+            ParsedAstMatcher::Delimited { op, cp, content } => {
+                let inner_start = if let Some((first, rest)) = content.split_first() {
+                    let (start, end) = self.link_list(first, rest);
+                    self.add_transition(end, ACCEPT.id, Matcher::Epsilon);
+                    start
+                } else {
+                    ACCEPT.id
+                };
+                Matcher::Delimited {
+                    op: op.ty.clone(),
+                    cp: cp.as_ref().map(|t| t.ty.clone()),
+                    start: inner_start,
+                }
+            }
+            other => panic!("\\^ does not support {:?} as its argument", other),
         }
     }
 
@@ -304,6 +337,11 @@ pub fn optimize(machine: &mut Machine) {
                 if let Matcher::Delimited { start, .. } = matcher {
                     queue.push(*start);
                 }
+                if let Matcher::Not(inner) = matcher {
+                    if let Matcher::Delimited { start, .. } = inner.as_ref() {
+                        queue.push(*start);
+                    }
+                }
             }
         }
 
@@ -358,6 +396,13 @@ pub fn optimize(machine: &mut Machine) {
                         *start = new_start;
                     }
                 }
+                if let Matcher::Not(inner) = matcher {
+                    if let Matcher::Delimited { start, .. } = inner.as_mut() {
+                        if let Some(&new_start) = remap.get(start) {
+                            *start = new_start;
+                        }
+                    }
+                }
             }
         }
         if let Some(&new_initial) = remap.get(&machine.initial) {
@@ -385,14 +430,21 @@ fn normalize(machine: &Machine) -> Machine {
                 .transitions
                 .iter()
                 .map(|(matcher, target)| {
-                    let new_matcher = if let Matcher::Delimited { op, cp, start } = matcher {
-                        Matcher::Delimited {
+                    let new_matcher = match matcher {
+                        Matcher::Delimited { op, cp, start } => Matcher::Delimited {
                             op: op.clone(),
                             cp: cp.clone(),
                             start: id_map[start],
-                        }
-                    } else {
-                        matcher.clone()
+                        },
+                        Matcher::Not(inner) => Matcher::Not(Box::new(match inner.as_ref() {
+                            Matcher::Delimited { op, cp, start } => Matcher::Delimited {
+                                op: op.clone(),
+                                cp: cp.clone(),
+                                start: id_map[start],
+                            },
+                            m => m.clone(),
+                        })),
+                        _ => matcher.clone(),
                     };
                     (new_matcher, id_map[target])
                 })

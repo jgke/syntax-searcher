@@ -346,4 +346,20 @@ mod tests {
         assert_eq!(run_strs(r"enum \.", "enum Foo"), vec!["enum Foo"]);
         assert_eq!(run_strs(r"enum \.", "enum()"), vec!["enum()"]);
     }
+
+    #[test]
+    fn test_not() {
+        // enum \^() matches flat tokens and other-delimited blocks, but not (...)
+        assert_eq!(run_strs(r"enum \^()", "enum Foo"), vec!["enum Foo"]);
+        assert_eq!(run_strs(r"enum \^()", "enum()"), Vec::<String>::new());
+        // \^foo matches anything that is not the identifier "foo"
+        assert_eq!(run_strs(r"\^foo", "bar"), vec!["bar"]);
+        assert_eq!(run_strs(r"\^foo", "foo"), Vec::<String>::new());
+
+        assert_eq!(run_strs(r"foo\^(bar)", "foo(bar)"), Vec::<String>::new());
+        assert_eq!(run_strs(r"foo\^(bar)", "foo(baz)"), vec!["foo(baz)"]);
+
+        assert_eq!(run_strs(r"foo\^(bar)", "foo(bar, baz)"), Vec::<String>::new());
+        assert_eq!(run_strs(r"foo\^(bar, baz)", "foo(bar, bar)"), vec!["foo(bar, bar)"]);
+    }
 }

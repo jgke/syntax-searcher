@@ -15,6 +15,7 @@ fn to_dot_condition(matcher: &Matcher) -> String {
         Matcher::Regex(r) => format!("r\"{}\"", r.as_str()),
         Matcher::Epsilon => "e".to_string(),
         Matcher::Accept => "accept".to_string(),
+        Matcher::Not(inner) => format!("^{}", to_dot_condition(inner)),
     })
     .replace('"', "\\\"")
 }

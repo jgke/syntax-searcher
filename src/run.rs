@@ -359,7 +359,13 @@ mod tests {
         assert_eq!(run_strs(r"foo\^(bar)", "foo(bar)"), Vec::<String>::new());
         assert_eq!(run_strs(r"foo\^(bar)", "foo(baz)"), vec!["foo(baz)"]);
 
-        assert_eq!(run_strs(r"foo\^(bar)", "foo(bar, baz)"), Vec::<String>::new());
-        assert_eq!(run_strs(r"foo\^(bar, baz)", "foo(bar, bar)"), vec!["foo(bar, bar)"]);
+        assert_eq!(
+            run_strs(r"foo\^(bar)", "foo(bar, baz)"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            run_strs(r"foo\^(bar, baz)", "foo(bar, bar)"),
+            vec!["foo(bar, bar)"]
+        );
     }
 }

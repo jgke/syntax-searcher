@@ -469,7 +469,7 @@ fn parse_query_ast(
                 }
             }
             if pending_not_before {
-                let last = res.pop().unwrap();
+                let last = res.pop().expect("Unreachable");
                 res.push(ParsedAstMatcher::Not(Box::new(last)));
                 pending_not = false;
             }
@@ -846,9 +846,7 @@ mod tests_query {
             }
             ParsedAstMatcher::Nested(content) => ParsedAstMatcher::Nested(strip_spans(content)),
             ParsedAstMatcher::Regex(regex) => ParsedAstMatcher::Regex(regex.clone()),
-            ParsedAstMatcher::Not(inner) => {
-                ParsedAstMatcher::Not(Box::new(strip_span(inner)))
-            }
+            ParsedAstMatcher::Not(inner) => ParsedAstMatcher::Not(Box::new(strip_span(inner))),
         }
     }
 

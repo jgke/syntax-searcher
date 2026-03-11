@@ -167,7 +167,7 @@ impl<'a> PeekableStringIterator<'a> {
         let (start_index, end_index) = self.get_span_indices(span);
 
         let head = self.content[start_index..span.lo].to_string();
-        let tail = self.content[span.hi + 1..end_index].to_string();
+        let tail = self.content[(span.hi + 1).min(end_index)..end_index].to_string();
         let content = self
             .get_content_between(span)
             .lines()
